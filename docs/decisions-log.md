@@ -83,3 +83,22 @@ Format: Decision → Alternatives considered → Why → Confidence.
 **Alternatives considered:** write full HLD for all layers before any code.
 **Why:** Layer 2 (schema + concurrency model) is stable enough to document confidently now. Layer 3's graph model is not yet proven — documenting it in detail before running even a trivial version risks documenting guesses. Build the skeleton first, then document what's actually true.
 **Confidence:** high — process decision, not technical.
+
+
+----
+
+### D11 - Hexagonal architecture for Layer 3 domain logic only, not uniformly across the system
+
+**Alternatives considered**: apply hexagonal/ports-and-adapters architecture across the whole system uniformly; or skip it entirely and just write direct Kafka/Postgres/Flask calls inline.
+**Why**: Layer 3's domain logic (GraphExecutor, node handlers, conditional/threshold checks, idempotency-check decisions) is pure logic that shouldn't be coupled to how Kafka delivers messages or how Postgres stores rows — defining ports (ConversationRepository, ToolInvocationRepository, OrderServiceClient, LlmClient) lets this be TDD'd fast against in-memory fakes with no infra running. Applying the same pattern to the bare Kafka consumer skeleton (build step 1) would be counterproductive — that step exists specifically to validate real Kafka-partition-ordering + Postgres-transaction behavior, and mocking it behind a port would prove the fake works, not that the real infra guarantee holds.
+Confidence: high for Layer 3 domain logic; explicitly not applied to infra-validation steps (step 1 of build sequencing).
+Testing strategy split:
+
+Domain logic (Layer 3 handlers, conditional logic, idempotency decisions) → classic TDD against port interfaces + fakes.
+Adapters (Kafka consumer/producer, Postgres repos, Flask client) → integration tests against real/containerized infra (Testcontainers or Docker Compose), written after domain logic is solid.
+
+**Known cost accepted**: boilerplate (DTOs/mappers between domain model and Postgres rows, interface definitions) beyond what a quick script would need — accepted here as deliberate practice of a pattern already used professionally (Grouper), not claimed as free or objectively required at this project's size.
+
+
+
+---

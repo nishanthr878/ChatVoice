@@ -4,7 +4,8 @@
 
 ## What this is
 
-A learning project to understand the architecture underneath platforms like Sierra and Decagon (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
+A learning project to understand the architecture undernea
+A learning project to understand th platforms like Sierra and Decagon (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
 
 ## Why this shape
 

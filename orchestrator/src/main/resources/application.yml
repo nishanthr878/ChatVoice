@@ -1,0 +1,12 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9094
+    consumer:
+      group-id: conversation-state-consumer
+      auto-offset-reset: earliest
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/agent_platform
+    username: agent
+    password: agent
+
