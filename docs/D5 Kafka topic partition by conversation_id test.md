@@ -48,3 +48,15 @@ Partition:1     Offset:2        con-A   message 3 for A
 Partition:2     Offset:2        con-B   message 3 for B
 Partition:1     Offset:3        con-A   test Nishanth for A
 ```
+
+
+```text
+CONV_ID=$(uuidgen)
+for i in 1 2 3 4 5; do
+  echo "${CONV_ID}:{\"speaker\":\"user\",\"content\":\"concurrent msg $i\"}" | \
+  docker exec -i agent-platform-kafka /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server localhost:9092 --topic conversation-events \
+    --property "parse.key=true" --property "key.separator=:" &
+done
+wait
+```

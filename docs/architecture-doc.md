@@ -74,14 +74,13 @@
 
 ## Build sequencing (current plan and status)
 
-1. **✅ Done, verified.** Layer 2 schema + bare Kafka consumer skeleton (turn in → `turn` row written). Raw Kafka CLI test confirmed partition-key ordering (see `d5-partition-ordering-validation.md`); Spring Boot consumer verified end-to-end against real Postgres + Kafka — idempotent conversation creation, gap-free ordered `sequence_number` assignment, and independent state across two concurrently-active conversation_ids. Stack: Spring Boot 4.1.0, Java 21, Jackson 3 (see decisions-log D14).
-2. **Not yet started, folded into step 1's remaining gaps.** Two things deferred, not forgotten: (a) multi-instance consumer group rebalance behavior untested — only one app instance has been run; (b) no genuine concurrent-load test — all validation sends were manual, one message at a time.
-3. **Next up.** Trivial single-node Layer 3 pass-through (fixed `current_node`, canned response, per D11's hexagonal-for-domain-logic-only split, TDD against fakes) — proves the graph-executor pattern before any real branching logic.
-4. Full `check_order_status` flow (read-only, no approval gate) — simplest real flow.
-5. Full `process_return` flow (mutating, approval gate) — proves the harder path (idempotency, escalation, conditional branching).
-6. Revisit this doc and `decisions-log.md` against what was actually learned; write the Layer 3 detailed design doc at that point, not before.
+1. **✅ Done, fully verified, including previously-open gaps.** Layer 2 schema + bare Kafka consumer skeleton. Verified: partition-key ordering (raw CLI), idempotent conversation creation and gap-free sequence_number assignment across concurrent conversations, multi-instance rebalance behavior (partition reassignment on join and on instance failure), and genuine concurrent-load message arrival (5 backgrounded concurrent sends, correctly serialized). See `d5-partition-ordering-validation.md` and decisions-log D10/D13. Stack: Spring Boot 4.1.0, Java 21, Jackson 3 (decisions-log D14).
+2. **Next up.** Trivial single-node Layer 3 pass-through (fixed `current_node`, canned response, per D11's hexagonal-for-domain-logic-only split, TDD against fakes) — proves the graph-executor pattern before any real branching logic.
+3. Full `check_order_status` flow (read-only, no approval gate) — simplest real flow.
+4. Full `process_return` flow (mutating, approval gate) — proves the harder path (idempotency, escalation, conditional branching).
+5. Revisit this doc and `decisions-log.md` against what was actually learned; write the Layer 3 detailed design doc at that point, not before.
 
 ## Known technical debt (tracked, not yet fixed)
 
 - Default `contextLoads()` test implicitly depends on live Kafka/Postgres infra being up — will hang or fail in CI or on a machine without Docker Compose running. Needs tagging as an integration test or removal, per D11's testing split.
-- `sequence_number` assignment is safe only under Spring Kafka's default single-thread-per-listener consumption — see decisions-log D13. Do not increase listener concurrency without addressing this first.
+- `sequence_number` assignment's real dependency is same-partition serialization, not raw consumer thread count (see decisions-log D13) — safe under current tests, but untested against topic repartitioning after conversations are already in flight.
