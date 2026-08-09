@@ -13,11 +13,7 @@ docker exec -it agent-platform-kafka /opt/kafka/bin/kafka-console-consumer.sh \
 ```
 
 ```bash
-docker exec -it agent-platform-kafka /opt/kafka/bin/kafka-console-producer.sh \
-  --bootstrap-server localhost:9092 \
-  --topic conversation-events \
-  --property "parse.key=true" \
-  --property "key.separator=:"
+
 ```
 
 ### Test by typing below one by one
