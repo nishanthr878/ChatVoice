@@ -84,21 +84,42 @@ Format: Decision → Alternatives considered → Why → Confidence.
 **Why:** Layer 2 (schema + concurrency model) is stable enough to document confidently now. Layer 3's graph model is not yet proven — documenting it in detail before running even a trivial version risks documenting guesses. Build the skeleton first, then document what's actually true.
 **Confidence:** high — process decision, not technical.
 
-
-----
-
-### D11 - Hexagonal architecture for Layer 3 domain logic only, not uniformly across the system
-
-**Alternatives considered**: apply hexagonal/ports-and-adapters architecture across the whole system uniformly; or skip it entirely and just write direct Kafka/Postgres/Flask calls inline.
-**Why**: Layer 3's domain logic (GraphExecutor, node handlers, conditional/threshold checks, idempotency-check decisions) is pure logic that shouldn't be coupled to how Kafka delivers messages or how Postgres stores rows — defining ports (ConversationRepository, ToolInvocationRepository, OrderServiceClient, LlmClient) lets this be TDD'd fast against in-memory fakes with no infra running. Applying the same pattern to the bare Kafka consumer skeleton (build step 1) would be counterproductive — that step exists specifically to validate real Kafka-partition-ordering + Postgres-transaction behavior, and mocking it behind a port would prove the fake works, not that the real infra guarantee holds.
-Confidence: high for Layer 3 domain logic; explicitly not applied to infra-validation steps (step 1 of build sequencing).
-Testing strategy split:
-
-Domain logic (Layer 3 handlers, conditional logic, idempotency decisions) → classic TDD against port interfaces + fakes.
-Adapters (Kafka consumer/producer, Postgres repos, Flask client) → integration tests against real/containerized infra (Testcontainers or Docker Compose), written after domain logic is solid.
-
-**Known cost accepted**: boilerplate (DTOs/mappers between domain model and Postgres rows, interface definitions) beyond what a quick script would need — accepted here as deliberate practice of a pattern already used professionally (Grouper), not claimed as free or objectively required at this project's size.
-
-
+**Status: D10's own validation step is complete.** The trivial Kafka→Postgres skeleton (no Layer 3 graph yet) is built and verified: raw Kafka CLI test confirmed same-key messages land on the same partition in strict offset order and different keys land on different partitions (see `d5-partition-ordering-validation.md`); the Spring Boot consumer correctly persists `conversation`/`turn` rows with `ON CONFLICT DO NOTHING` idempotent conversation creation and gap-free, correctly-ordered `sequence_number` assignment, verified independently across two different conversation_ids processed in the same run. Not yet tested: multiple consumer instances in the same group (rebalance behavior), and message arrival under genuine concurrent/rapid-fire load rather than manual one-at-a-time sends — both are open gaps, not assumed-safe.
 
 ---
+
+### D11 — Hexagonal architecture for Layer 3 domain logic only, not uniformly across the system
+
+**Alternatives considered:** apply hexagonal/ports-and-adapters architecture across the whole system uniformly; or skip it entirely and just write direct Kafka/Postgres/Flask calls inline.
+**Why:** Layer 3's domain logic (`GraphExecutor`, node handlers, conditional/threshold checks, idempotency-check decisions) is pure logic that shouldn't be coupled to how Kafka delivers messages or how Postgres stores rows — defining ports (`ConversationRepository`, `ToolInvocationRepository`, `OrderServiceClient`, `LlmClient`) lets this be TDD'd fast against in-memory fakes with no infra running. Applying the same pattern to the bare Kafka consumer skeleton (build step 1-3) would be counterproductive — that step exists specifically to validate real Kafka-partition-ordering + Postgres-transaction behavior, and mocking it behind a port would prove the fake works, not that the real infra guarantee holds.
+**Confidence:** high for Layer 3 domain logic; explicitly not applied to the infra-validation steps already built (Layer 1/2 skeleton).
+**Testing strategy split:**
+- Domain logic (Layer 3 handlers, conditional logic, idempotency decisions) → classic TDD against port interfaces + fakes.
+- Adapters (Kafka consumer/producer, Postgres repos, Flask client) → integration tests against real/containerized infra (Testcontainers or Docker Compose), written after domain logic is solid.
+
+**Known cost accepted:** boilerplate (DTOs/mappers between domain model and Postgres rows, interface definitions) beyond what a quick script would need — accepted here as deliberate practice of a pattern already used professionally (Grouper), not claimed as free or objectively required at this project's size.
+
+---
+
+### D12 — Log at the consumer's entry/exit boundary only, not inside private helper methods
+
+**Alternatives considered:** no logging (relying on exceptions surfacing failures); logging inside every private method (`ensureConversationExists`, `insertTurn`) for fine-grained visibility.
+**Why:** the success path was previously silent — debugging required querying Postgres directly to confirm a message was even received, let alone processed correctly. A log line at the top of `onMessage` (received, with conversation_id and raw payload) and one at the end (persisted successfully) gives enough signal to know whether a message was received and whether it completed, without flooding output with internal step-by-step noise that a boundary log already implies. Logging inside every private method was rejected as over-instrumentation for no added diagnostic value at this stage — add `debug`-level detail later only if a specific bug requires it.
+**Confidence:** high for the boundary-only placement. Log level chosen as `info` (not `debug`) is a conscious tradeoff for a learning project — acceptable at current volume, explicitly not the right call for a system processing high message throughput in production.
+
+---
+
+### D13 — `sequence_number` assignment via `SELECT MAX + 1` then `INSERT` (two statements, not atomic) is safe only under single-threaded-per-partition consumption
+
+**Alternatives considered:** a Postgres sequence or trigger-based auto-increment; row-level locking around the read-then-write.
+**Why not fixed now:** the two-statement read-then-write pattern is only race-free because Spring Kafka defaults to one consumer thread per listener container — no `concurrency` property has been set on `@KafkaListener`, so exactly one thread processes messages for this listener at a time, regardless of partition count. This has been empirically relied upon, not just assumed: all validation testing so far occurred under this default.
+**Explicit constraint going forward:** this becomes a live race condition the moment `concurrency` is increased on this listener, or the app is horizontally scaled without repartitioning the sequencing logic. A code comment has been added at the point of the SQL noting this. Must be revisited (Postgres sequence, or row-locking, or moving sequencing to a DB constraint/trigger) before any change to consumer concurrency or instance count.
+**Confidence:** high — correct as-is, but fragile to a specific, easy-to-make future change. Treat as documented technical debt, not resolved.
+
+---
+
+### D14 — Stack pinned to current versions (Spring Boot 4.1.0 / Jackson 3, `tools.jackson.*` packages) rather than deliberately targeting an older, more commonly-documented version
+
+**Alternatives considered:** target Spring Boot 3.5.x (more tutorials/StackOverflow coverage available) for a smoother learning experience.
+**Why:** 3.5.x reached OSS end-of-life June 30, 2026 — building new learning infrastructure on an EOL line was rejected outright regardless of tutorial availability. Building on the current stack surfaced real, worth-knowing breaking changes rather than hiding them: Jackson 3's package rename (`com.fasterxml.jackson.*` → `tools.jackson.*`) and its shift from checked (`JsonProcessingException`/`IOException`) to unchecked (`JacksonException`/`RuntimeException`) exceptions caused two real debugging sessions during setup — both are now understood, not just patched around.
+**Confidence:** high — accepted the short-term friction of less tutorial coverage as a worthwhile tradeoff for staying current and for the genuine learning value of hitting real breaking changes firsthand.

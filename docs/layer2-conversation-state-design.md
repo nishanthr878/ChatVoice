@@ -12,44 +12,44 @@ Layer 2 only. Two concrete flows will run on top of it: `check_order_status` (re
 
 ```sql
 CREATE TABLE conversation (
-    conversation_id UUID PRIMARY KEY,
-    channel VARCHAR(16) NOT NULL,          -- 'chat' (voice later)
-    flow_type VARCHAR(64) NOT NULL,        -- 'check_order_status' | 'process_return'
-    current_node VARCHAR(64) NOT NULL,
-    status VARCHAR(16) NOT NULL,           -- active/escalated/resolved/abandoned
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+                              conversation_id UUID PRIMARY KEY,
+                              channel VARCHAR(16) NOT NULL,          -- 'chat' (voice later)
+                              flow_type VARCHAR(64) NOT NULL,        -- 'check_order_status' | 'process_return'
+                              current_node VARCHAR(64) NOT NULL,
+                              status VARCHAR(16) NOT NULL,           -- active/escalated/resolved/abandoned
+                              created_at TIMESTAMPTZ DEFAULT now(),
+                              updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE turn (
-    turn_id UUID PRIMARY KEY,
-    conversation_id UUID REFERENCES conversation(conversation_id),
-    speaker VARCHAR(8) NOT NULL,           -- user/agent/system
-    content TEXT NOT NULL,
-    sequence_number INT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE(conversation_id, sequence_number)
+                      turn_id UUID PRIMARY KEY,
+                      conversation_id UUID REFERENCES conversation(conversation_id),
+                      speaker VARCHAR(8) NOT NULL,           -- user/agent/system
+                      content TEXT NOT NULL,
+                      sequence_number INT NOT NULL,
+                      created_at TIMESTAMPTZ DEFAULT now(),
+                      UNIQUE(conversation_id, sequence_number)
 );
 
 CREATE TABLE slot (
-    conversation_id UUID REFERENCES conversation(conversation_id),
-    slot_name VARCHAR(64) NOT NULL,
-    slot_value JSONB NOT NULL,
-    source_turn_id UUID REFERENCES turn(turn_id),
-    filled_at TIMESTAMPTZ DEFAULT now(),
-    PRIMARY KEY (conversation_id, slot_name)
+                      conversation_id UUID REFERENCES conversation(conversation_id),
+                      slot_name VARCHAR(64) NOT NULL,
+                      slot_value JSONB NOT NULL,
+                      source_turn_id UUID REFERENCES turn(turn_id),
+                      filled_at TIMESTAMPTZ DEFAULT now(),
+                      PRIMARY KEY (conversation_id, slot_name)
 );
 
 CREATE TABLE tool_invocation (
-    invocation_id UUID PRIMARY KEY,
-    conversation_id UUID REFERENCES conversation(conversation_id),
-    idempotency_key VARCHAR(128) UNIQUE NOT NULL,  -- conversation_id:turn_id:tool_name
-    tool_name VARCHAR(64) NOT NULL,
-    arguments JSONB NOT NULL,
-    result JSONB,
-    status VARCHAR(16) NOT NULL,           -- pending/approved/executed/failed/rejected
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+                                 invocation_id UUID PRIMARY KEY,
+                                 conversation_id UUID REFERENCES conversation(conversation_id),
+                                 idempotency_key VARCHAR(128) UNIQUE NOT NULL,  -- conversation_id:turn_id:tool_name
+                                 tool_name VARCHAR(64) NOT NULL,
+                                 arguments JSONB NOT NULL,
+                                 result JSONB,
+                                 status VARCHAR(16) NOT NULL,           -- pending/approved/executed/failed/rejected
+                                 created_at TIMESTAMPTZ DEFAULT now(),
+                                 updated_at TIMESTAMPTZ DEFAULT now()
 );
 ```
 
@@ -73,6 +73,8 @@ CREATE TABLE tool_invocation (
 4. Consumer persists updated `current_node`, any new `slot` rows, and `turn` row — in a single transaction.
 
 **Explicitly deferred:** actor-model-per-conversation, distributed locking beyond partition ordering, multi-instance conversation affinity beyond Kafka partition assignment. Add only if the single-consumer-group model proves insufficient under real load.
+
+**Implementation note, discovered during build (not originally anticipated in this design):** `turn.sequence_number` is computed via a two-statement `SELECT MAX(sequence_number) + 1` followed by `INSERT` — not atomic. This is race-free only because Spring Kafka's `@KafkaListener` runs with default concurrency (one thread per listener container), so no two threads ever process messages for the same `conversation_id` simultaneously. This has been empirically verified under manual, one-at-a-time message sends — not yet under genuine concurrent load. **This becomes a real bug if listener concurrency is ever increased or the app is horizontally scaled without revisiting this logic** (options: Postgres sequence, row-level locking, or a DB-level constraint/trigger). See decisions-log D13.
 
 ## Explicitly Out of Scope (for this document)
 

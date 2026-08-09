@@ -4,8 +4,7 @@
 
 ## What this is
 
-A learning project to understand the architecture undernea
-A learning project to understand th platforms like Sierra and Decagon (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
+A learning project to understand the architecture underneath platforms like Sierra and Decagon (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
 
 ## Why this shape
 
@@ -32,4 +31,6 @@ Sierra/Decagon's real IP is not "LLM + tools." It's a policy-bounded orchestrati
 
 ## Stack
 
-Java/Spring (not Python), Kafka, Postgres for the core orchestrator. Flask + SQLite for the order service (separate deployable, intentionally simple/different stack — mirrors a realistic scenario where the agent platform integrates with an external system it doesn't control).
+Java 21, Spring Boot 4.1.0 (Spring Framework 7, Jackson 3 with `tools.jackson.*` packages and unchecked `JacksonException`), Kafka (KRaft mode, no Zookeeper), Postgres for the core orchestrator. Flask + SQLite for the order service (separate deployable, intentionally simple/different stack — mirrors a realistic scenario where the agent platform integrates with an external system it doesn't control).
+
+Deliberately built on current (not EOL) framework versions — see decisions-log D14 for the real breaking-change gotchas this surfaced (Jackson package rename, checked→unchecked exception shift) and why they were worth hitting directly rather than avoided by targeting an older, more-documented version.

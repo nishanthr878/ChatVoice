@@ -2,6 +2,8 @@ package in.nishanthraj.orchestrator.consumer;
 
 import in.nishanthraj.orchestrator.TurnPayload;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -10,6 +12,8 @@ import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class ConversationEventConsumer {
+
+    private static final Logger log = LoggerFactory.getLogger(ConversationEventConsumer.class);
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -22,11 +26,12 @@ public class ConversationEventConsumer {
     @KafkaListener(topics = "conversation-events", groupId = "conversation-state-consumer")
     public void onMessage(ConsumerRecord<String, String> record) {
         String conversationId = record.key();
+        log.info("Received turn for conversation {}: {}", conversationId, record.value());
         TurnPayload payload = parse(record.value());
 
         ensureConversationExists(conversationId);
         insertTurn(conversationId, payload);
-
+        log.info("Persisted turn for conversation {}", conversationId);
     }
 
     private void ensureConversationExists(String conversationId) {
@@ -35,6 +40,7 @@ public class ConversationEventConsumer {
             VALUES (?::uuid, 'chat', 'trivial_test', 'start', 'active')
             ON CONFLICT (conversation_id) DO NOTHING
             """, conversationId);
+
     }
 
     private void insertTurn(String conversationId, TurnPayload payload) {
