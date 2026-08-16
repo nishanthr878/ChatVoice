@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.consumer;
+package in.nishanthraj.orchestrator.adapter.consumer;
 
 import in.nishanthraj.orchestrator.TurnPayload;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
