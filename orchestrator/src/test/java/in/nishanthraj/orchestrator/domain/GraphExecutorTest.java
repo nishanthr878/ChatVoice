@@ -9,7 +9,8 @@ public class GraphExecutorTest {
     @Test
     void trivalFlowMovesToConfirmNode() {
         ConversationRepository repo = new InMemoryConversationRepository();
-        GraphExecutor executor = new GraphExecutor(repo);
+        TurnRepository turnRepo = new InMemoryTurnRepository();
+        GraphExecutor executor = new GraphExecutor(repo, turnRepo);
 
         String result = executor.step("some-conversation-id", "hello");
 
@@ -21,7 +22,8 @@ public class GraphExecutorTest {
     @Test
     void newConversationGetsCreatedAndReachesConfirm() {
         ConversationRepository repo = new InMemoryConversationRepository();
-        GraphExecutor executor = new GraphExecutor(repo);
+        TurnRepository turnRepo = new InMemoryTurnRepository();
+        GraphExecutor executor = new GraphExecutor(repo, turnRepo);
 
         String result = executor.step("brand-new-conversation-id", "hello");
 

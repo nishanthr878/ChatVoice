@@ -101,6 +101,26 @@ Format: Decision → Alternatives considered → Why → Confidence.
 
 ---
 
+### D15 — Layer 3's trivial pass-through built with real hexagonal ports and TDD, then rewired end-to-end
+
+**What was built:** `ConversationRepository` and `TurnRepository` as domain-layer ports; `GraphExecutor` (now `@Component`) as the sole domain-logic consumer of both, holding references to them (not implementing them — has-a, not is-a); `PostgresConversationRepository` and `PostgresTurnRepository` as real adapters; `InMemoryConversationRepository`/`InMemoryTurnRepository` as test fakes. `ConversationEventConsumer` rewired to depend on `GraphExecutor` alone — all direct `JdbcTemplate` calls removed from the consumer, which now only parses the Kafka payload and delegates.
+**Testing:** `GraphExecutor` unit-tested against fakes (2 tests: trivial flow, new-conversation creation-then-transition); `PostgresConversationRepository` integration-tested against a real Postgres via Testcontainers (4 tests: schema present, create+exists, update+get, get-after-create). All adapter tests use a per-test/per-`@BeforeEach` freshly-generated UUID rather than a shared hardcoded ID — a real test-isolation bug was found and fixed during this work (multiple tests sharing one hardcoded conversation_id, with no guaranteed JUnit execution order, meant later tests could silently depend on state left by earlier ones, or collide on duplicate-key inserts).
+**Verified end-to-end:** a real Kafka message run through the full chain (Kafka → `ConversationEventConsumer` → `GraphExecutor` → both Postgres adapters) produced a `conversation` row with `current_node = 'confirm'` and a correctly-sequenced `turn` row — confirmed by direct query, not by log output alone.
+**Turn-persistence placement decision:** turn-insertion logic (previously living directly in the Kafka consumer) was moved into the domain layer via `TurnRepository`, called by `GraphExecutor.step()` alongside the conversation create/transition logic — reasoned as belonging to the same "conversation state" responsibility `GraphExecutor` already owns, rather than staying a separate adapter-only concern.
+**Known limitation, explicit:** `GraphExecutor.step()` is still fully hardcoded — one fixed transition to `"confirm"`, `input` parameter unused, no real branching. This is the trivial pass-through only; real graph logic starts with the `check_order_status` flow, not yet built.
+
+---
+
+### D16 — Further current-stack breaking changes discovered while adding Testcontainers (building on D14)
+
+**What was hit, on top of D14's Jackson 3/Spring Boot 4 findings:**
+- Testcontainers itself is now at a major version 2.0, which renamed module artifacts (e.g. `org.testcontainers:junit-jupiter` → `org.testcontainers:testcontainers-junit-jupiter`, `org.testcontainers:postgresql` → `org.testcontainers:testcontainers-postgresql`) — Spring Boot 4.1's BOM manages only the new names, so declaring the old artifact IDs resolved with no version at all.
+- Testcontainers 2.0 also restructured its Java API: container classes moved out of the shared `org.testcontainers.containers` package into per-technology packages (e.g. `PostgreSQLContainer` is now `org.testcontainers.postgresql.PostgreSQLContainer`), and most container classes dropped their generic self-type parameter (`PostgreSQLContainer<?>` → plain `PostgreSQLContainer`, no diamond operator on construction).
+  **Why this is being logged as its own decision rather than just a bug fix:** this is the third and fourth instance this session of a real, current major-version ecosystem change (after Jackson 3's package rename and Spring Boot 4's starter renaming in D14) — confirms D14's accepted tradeoff (building on current, non-EOL versions costs real debugging time against breaking changes that pre-date most tutorials/training data) as an ongoing pattern, not a one-off. The generalizable lesson, not just the four specific fixes: when a dependency error looks like "should obviously work but doesn't" (missing version, unresolvable symbol, unexpected API shape), check for a recent major-version rename in that library before assuming a typo or logic error.
+  **Confidence:** high that this pattern will recur again on this stack; each individual fix confirmed working via successful build/test runs, not just reasoned from documentation.
+
+---
+
 ### D12 — Log at the consumer's entry/exit boundary only, not inside private helper methods
 
 **Alternatives considered:** no logging (relying on exceptions surfacing failures); logging inside every private method (`ensureConversationExists`, `insertTurn`) for fine-grained visibility.

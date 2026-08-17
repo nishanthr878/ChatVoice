@@ -1,61 +1,40 @@
-package in.nishanthraj.orchestrator.adapter.consumer;
-
-import in.nishanthraj.orchestrator.TurnPayload;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
+    package in.nishanthraj.orchestrator.adapter.consumer;
 
 
-@Component
-public class ConversationEventConsumer {
+    import in.nishanthraj.orchestrator.domain.GraphExecutor;
+    import org.apache.kafka.clients.consumer.ConsumerRecord;
+    import org.slf4j.Logger;
+    import org.slf4j.LoggerFactory;
+    import org.springframework.kafka.annotation.KafkaListener;
+    import org.springframework.stereotype.Component;
+    import tools.jackson.databind.ObjectMapper;
 
-    private static final Logger log = LoggerFactory.getLogger(ConversationEventConsumer.class);
+    @Component
+    public class ConversationEventConsumer {
 
-    private final JdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+        private static final Logger log = LoggerFactory.getLogger(ConversationEventConsumer.class);
 
-    public ConversationEventConsumer (JdbcTemplate jdbc, ObjectMapper objectMapper) {
-        this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
-    }
+        private final GraphExecutor graphExecutor;
+        private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "conversation-events", groupId = "conversation-state-consumer")
-    public void onMessage(ConsumerRecord<String, String> record) {
-        String conversationId = record.key();
-        log.info("Received turn for conversation {}: {}", conversationId, record.value());
-        TurnPayload payload = parse(record.value());
+        public ConversationEventConsumer(GraphExecutor graphExecutor, ObjectMapper objectMapper) {
+            this.graphExecutor = graphExecutor;
+            this.objectMapper = objectMapper;
+        }
 
-        ensureConversationExists(conversationId);
-        insertTurn(conversationId, payload);
-        log.info("Persisted turn for conversation {}", conversationId);
-    }
+        @KafkaListener(topics = "conversation-events", groupId = "conversation-state-consumer")
+        public void onMessage(ConsumerRecord<String, String> record) {
+            String conversationId = record.key();
+            log.info("Received turn for conversation {}: {}", conversationId, record.value());
 
-    private void ensureConversationExists(String conversationId) {
-        jdbc.update("""
-            INSERT INTO conversation (conversation_id, channel, flow_type, current_node, status)
-            VALUES (?::uuid, 'chat', 'trivial_test', 'start', 'active')
-            ON CONFLICT (conversation_id) DO NOTHING
-            """, conversationId);
+            TurnPayload payload = parse(record.value());
+            String response = graphExecutor.step(conversationId, payload.content());
+
+            log.info("Persisted turn for conversation {}, response: {}", conversationId, response);
+        }
+
+        private TurnPayload parse(String json) {
+            return objectMapper.readValue(json, TurnPayload.class);
+        }
 
     }
-
-    private void insertTurn(String conversationId, TurnPayload payload) {
-        Integer nextSeq = jdbc.queryForObject("""
-            SELECT COALESCE(MAX(sequence_number), 0) + 1
-            FROM turn WHERE conversation_id = ?::uuid
-            """, Integer.class, conversationId);
-
-        jdbc.update("""
-            INSERT INTO turn (turn_id, conversation_id, speaker, content, sequence_number)
-            VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?)
-            """, conversationId, payload.speaker(), payload.content(), nextSeq);
-    }
-
-    private TurnPayload parse(String json) {
-        return objectMapper.readValue(json, TurnPayload.class);
-    }
-}

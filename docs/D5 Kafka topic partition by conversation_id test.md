@@ -13,7 +13,14 @@ docker exec -it agent-platform-kafka /opt/kafka/bin/kafka-console-consumer.sh \
 ```
 
 ```bash
-
+CONV_ID=$(uuidgen)
+echo "Using conversation_id: $CONV_ID"
+echo "${CONV_ID}:{\"speaker\":\"user\",\"content\":\"testing the rewired consumer\"}" | \
+  docker exec -i agent-platform-kafka /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server localhost:9092 \
+    --topic conversation-events \
+    --property "parse.key=true" \
+    --property "key.separator=:"
 ```
 
 ### Test by typing below one by one
@@ -59,4 +66,15 @@ for i in 1 2 3 4 5; do
     --property "parse.key=true" --property "key.separator=:" &
 done
 wait
+```
+
+```bash
+CONV_ID=$(uuidgen)
+echo "Using conversation_id: $CONV_ID"
+echo "${CONV_ID}:{\"speaker\":\"user\",\"content\":\"testing the rewired consumer\"}" | \
+  docker exec -i agent-platform-kafka /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server localhost:9092 \
+    --topic conversation-events \
+    --property "parse.key=true" \
+    --property "key.separator=:"
 ```
