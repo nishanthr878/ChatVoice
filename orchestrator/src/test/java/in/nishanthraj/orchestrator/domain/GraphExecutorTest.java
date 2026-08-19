@@ -1,33 +1,35 @@
 package in.nishanthraj.orchestrator.domain;
 
 import org.junit.jupiter.api.Test;
-
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GraphExecutorTest {
 
-    @Test
-    void trivalFlowMovesToConfirmNode() {
-        ConversationRepository repo = new InMemoryConversationRepository();
-        TurnRepository turnRepo = new InMemoryTurnRepository();
-        GraphExecutor executor = new GraphExecutor(repo, turnRepo);
+    private Flow trivialFlow() {
+        return new Flow() {
+            @Override
+            public String flowType() {
+                return "check_order_status";
+            }
 
-        String result = executor.step("some-conversation-id", "hello");
-
-        assertEquals("confirm", repo.getCurrentNode("some-conversation-id"));
-        assertEquals("Got it, thanks!", result);
-
+            @Override
+            public NodeHandler handlerFor(String nodeName) {
+                return (conversationId, input) -> "Got it, thanks!";
+            }
+        };
     }
 
     @Test
-    void newConversationGetsCreatedAndReachesConfirm() {
+    void newConversationGetsCreatedAndDispatchesToFlow() {
         ConversationRepository repo = new InMemoryConversationRepository();
         TurnRepository turnRepo = new InMemoryTurnRepository();
-        GraphExecutor executor = new GraphExecutor(repo, turnRepo);
+        Map<String, Flow> flows = Map.of("check_order_status", trivialFlow());
+        GraphExecutor executor = new GraphExecutor(repo, turnRepo, flows);
 
         String result = executor.step("brand-new-conversation-id", "hello");
 
-        assertEquals("confirm", repo.getCurrentNode("brand-new-conversation-id"));
         assertEquals("Got it, thanks!", result);
+        assertEquals("check_order_status", repo.getFlowType("brand-new-conversation-id"));
     }
 }

@@ -7,4 +7,5 @@ public interface ConversationRepository {
     void updateCurrentNode(String conversationId, String newNode);
     boolean exists(String conversationId);
     void create(String conversationId, String channel, String flowType, String initialNode);
+    String getFlowType(String conversationId);
 }

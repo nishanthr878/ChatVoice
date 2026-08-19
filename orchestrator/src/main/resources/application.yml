@@ -10,3 +10,5 @@ spring:
     username: agent
     password: agent
 
+order-service:
+  base-url: http://localhost:5001

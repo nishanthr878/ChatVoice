@@ -71,6 +71,12 @@ public class PostgresConversationRepositoryTest {
         assertEquals("initialNode", repository.getCurrentNode(conversationId));
     }
 
+    @Test
+    void testGetFlowType() {
+        repository.create(conversationId, "testChannel", "testFlow", "initialNode");
+        assertEquals("testFlow", repository.getFlowType(conversationId));
+    }
+
 
 
 }

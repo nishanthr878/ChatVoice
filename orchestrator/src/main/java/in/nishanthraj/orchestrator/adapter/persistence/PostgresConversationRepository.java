@@ -51,5 +51,12 @@ public class PostgresConversationRepository implements ConversationRepository {
         );
     }
 
+    @Override
+    public String getFlowType(String conversationId) {
+        return jdbc.queryForObject(
+                "SELECT flow_type from conversation WHERE conversation_id = ?::uuid",
+                String.class, conversationId
+        );
+    }
 }
 
