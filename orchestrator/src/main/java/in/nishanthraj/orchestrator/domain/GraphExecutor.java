@@ -2,6 +2,7 @@ package in.nishanthraj.orchestrator.domain;
 
 import org.springframework.stereotype.Component;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class GraphExecutor {
@@ -23,7 +24,8 @@ public class GraphExecutor {
             conversationRepository.create(conversationId, "chat", "check_order_status", "collect_order_id");
         }
 
-        turnRepository.inserTurn(conversationId, "user", input);
+        String userTurnId = UUID.randomUUID().toString();
+        turnRepository.insertTurn(conversationId, userTurnId, "user", input);
 
         String flowType = conversationRepository.getFlowType(conversationId);
         String currentNode = conversationRepository.getCurrentNode(conversationId);
@@ -34,9 +36,10 @@ public class GraphExecutor {
         }
 
         NodeHandler handler = flow.handlerFor(currentNode);
-        String response = handler.handle(conversationId, input);
+        String response = handler.handle(conversationId, userTurnId, input);
 
-        turnRepository.inserTurn(conversationId, "agent", response);
+        String agentTurnId = UUID.randomUUID().toString();
+        turnRepository.insertTurn(conversationId, agentTurnId, "agent", response);
 
         return response;
     }

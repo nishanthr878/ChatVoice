@@ -40,16 +40,18 @@ class PostgresTurnRepositoryTest {
     private JdbcTemplate jdbc;
 
     private String conversationId;
+    private String turnId;
 
     @BeforeEach
     void setUp() {
         conversationId = UUID.randomUUID().toString();
+        turnId = UUID.randomUUID().toString();
         conversationRepository.create(conversationId, "chat", "test", "start");
     }
 
     @Test
     void firstTurnGetsSequenceNumberOne() {
-        turnRepository.inserTurn(conversationId, "user", "hello");
+        turnRepository.insertTurn(conversationId, turnId, "user", "Hello");
 
         Integer count = jdbc.queryForObject(
                 "SELECT sequence_number FROM turn WHERE conversation_id = ?::uuid",
@@ -60,8 +62,8 @@ class PostgresTurnRepositoryTest {
 
     @Test
     void secondTurnGetsSequenceNumberTwo() {
-        turnRepository.inserTurn(conversationId, "user", "first");
-        turnRepository.inserTurn(conversationId, "agent", "second");
+        turnRepository.insertTurn(conversationId, UUID.randomUUID().toString(), "user", "first");
+        turnRepository.insertTurn(conversationId, UUID.randomUUID().toString(), "agent", "second");
 
         Integer count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM turn WHERE conversation_id = ?::uuid",

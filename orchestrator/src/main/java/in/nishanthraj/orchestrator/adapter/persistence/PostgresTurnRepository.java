@@ -14,7 +14,7 @@ public class PostgresTurnRepository implements TurnRepository {
     }
 
     @Override
-    public void inserTurn(String conversationId, String speaker, String content) {
+    public void insertTurn(String conversationId, String turnId, String speaker, String content) {
         Integer nextSeq = jdbc.queryForObject("""
             SELECT COALESCE(MAX(sequence_number), 0) + 1
             FROM turn WHERE conversation_id = ?::uuid
@@ -22,7 +22,7 @@ public class PostgresTurnRepository implements TurnRepository {
 
         jdbc.update("""
             INSERT INTO turn (turn_id, conversation_id, speaker, content, sequence_number)
-            VALUES (gen_random_uuid(), ?::uuid, ?, ?, ?)
-            """, conversationId, speaker, content, nextSeq);
+            VALUES (?::uuid, ?::uuid, ?, ?, ?)
+            """, turnId, conversationId, speaker, content, nextSeq);
     }
 }

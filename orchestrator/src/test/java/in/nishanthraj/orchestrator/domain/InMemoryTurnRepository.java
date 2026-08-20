@@ -2,7 +2,7 @@ package in.nishanthraj.orchestrator.domain;
 
 public class InMemoryTurnRepository implements TurnRepository {
     @Override
-    public void inserTurn(String conversationId, String speaker, String content) {
-
+    public void insertTurn(String conversationId, String turnId, String speaker, String content) {
+        // no-op fake, same as before
     }
 }

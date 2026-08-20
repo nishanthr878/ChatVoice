@@ -2,6 +2,8 @@ package in.nishanthraj.orchestrator.domain;
 
 import org.junit.jupiter.api.Test;
 import java.util.Map;
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GraphExecutorTest {
@@ -15,7 +17,7 @@ public class GraphExecutorTest {
 
             @Override
             public NodeHandler handlerFor(String nodeName) {
-                return (conversationId, input) -> "Got it, thanks!";
+                return (conversationId, turnId, input) -> "Got it, thanks!";
             }
         };
     }
@@ -27,7 +29,7 @@ public class GraphExecutorTest {
         Map<String, Flow> flows = Map.of("check_order_status", trivialFlow());
         GraphExecutor executor = new GraphExecutor(repo, turnRepo, flows);
 
-        String result = executor.step("brand-new-conversation-id", "hello");
+        String result = executor.step("brand-new-conversation-id","hello");
 
         assertEquals("Got it, thanks!", result);
         assertEquals("check_order_status", repo.getFlowType("brand-new-conversation-id"));

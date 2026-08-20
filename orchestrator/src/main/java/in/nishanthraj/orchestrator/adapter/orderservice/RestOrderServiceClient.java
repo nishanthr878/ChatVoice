@@ -13,7 +13,7 @@ public class RestOrderServiceClient implements OrderServiceClient {
 
     private final RestClient restClient;
 
-    public RestOrderServiceClient(RestClient.Builder restClientBuilder, @Value("${order.service.base-url}") String baseUrl) {
+    public RestOrderServiceClient(RestClient.Builder restClientBuilder, @Value("${order-service.base-url:http://localhost:5001}") String baseUrl) {
         this.restClient = restClientBuilder.baseUrl(baseUrl).build();
     }
 
@@ -21,7 +21,7 @@ public class RestOrderServiceClient implements OrderServiceClient {
     public Optional<OrderDetails> getOrder(String orderId) {
         try {
             OrderDetails result = restClient.get()
-                    .uri("/orders{orderId}",  orderId)
+                    .uri("/orders/{orderId}",  orderId)
                     .retrieve()
                     .body(OrderDetails.class);
             return Optional.ofNullable(result);
