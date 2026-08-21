@@ -1,6 +1,7 @@
 package in.nishanthraj.orchestrator.config;
 
 import in.nishanthraj.orchestrator.domain.flow.CheckOrderStatusFlow;
+import in.nishanthraj.orchestrator.domain.flow.IntentClassificationFlow;
 import in.nishanthraj.orchestrator.domain.flow.ProcessReturnFlow;
 import in.nishanthraj.orchestrator.domain.orchestration.Flow;
 import in.nishanthraj.orchestrator.domain.port.*;
@@ -34,7 +35,10 @@ public class FlowConfiguration {
         ProcessReturnFlow processReturnFlow = new ProcessReturnFlow(conversationRepository,
                 slotRepository, toolInvocationRepository, llmClient,orderServiceClient, objectMapper, orderLookupHelper);
 
+        IntentClassificationFlow intentClassificationFlow = new IntentClassificationFlow(conversationRepository, llmClient);
+
         return Map.of(checkOrderStatusFlow.flowType(), checkOrderStatusFlow,
-                processReturnFlow.flowType(), processReturnFlow);
+                processReturnFlow.flowType(), processReturnFlow,
+                intentClassificationFlow.flowType(), intentClassificationFlow);
     }
 }

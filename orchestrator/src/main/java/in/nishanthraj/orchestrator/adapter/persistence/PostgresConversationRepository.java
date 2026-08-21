@@ -58,5 +58,13 @@ public class PostgresConversationRepository implements ConversationRepository {
                 String.class, conversationId
         );
     }
+
+    @Override
+    public void updateFlowType(String conversationId, String flowType) {
+        jdbc.update(
+                "UPDATE conversation SET flow_type = ?, updated_at = NOW() WHERE conversation_id = ?::uuid",
+                flowType, conversationId
+        );
+    }
 }
 

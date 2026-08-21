@@ -40,6 +40,7 @@ dependencies {
 	testImplementation("org.testcontainers:testcontainers-postgresql")
 	testImplementation("org.testcontainers:testcontainers-kafka")
 	testImplementation("org.awaitility:awaitility")
+	testImplementation 'org.springframework.boot:spring-boot-resttestclient'
 }
 
 tasks.named('test') {

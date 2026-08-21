@@ -31,6 +31,11 @@ public class InMemoryConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public void updateFlowType(String conversationId, String flowType) {
+        flowTypes.put(conversationId, flowType);
+    }
+
+    @Override
     public String getFlowType(String conversationId) {
         return flowTypes.get(conversationId);
     }

@@ -31,6 +31,15 @@ def init_db():
         conn.execute("INSERT INTO orders VALUES ('1001', 'created')")
         conn.execute("INSERT INTO order_lines VALUES ('1001', 'item-1', 'Blue T-Shirt', 19.99)")
         conn.execute("INSERT INTO order_lines VALUES ('1001', 'item-2', 'Running Shoes', 59.99)")
+
+        conn.execute("INSERT INTO orders VALUES ('1002', 'shipped')")
+        conn.execute("INSERT INTO order_lines VALUES ('1002', 'item-3', 'Phone Case', 8.99)")
+        conn.execute("INSERT INTO order_lines VALUES ('1002', 'item-4', 'Wireless Charger', 24.99)")
+
+        conn.execute("INSERT INTO orders VALUES ('1003', 'delivered')")
+        conn.execute("INSERT INTO order_lines VALUES ('1003', 'item-5', 'Notebook', 4.99)")
+
+
     conn.commit()
     conn.close()
 

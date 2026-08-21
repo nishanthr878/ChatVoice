@@ -23,7 +23,7 @@ public class GraphExecutor {
 
     public String step(String conversationId, String input) {
         if (!conversationRepository.exists(conversationId)) {
-            conversationRepository.create(conversationId, "chat", "check_order_status", "collect_order_id");
+            conversationRepository.create(conversationId, "chat", "intent_classification", "classify");
         }
 
         String userTurnId = UUID.randomUUID().toString();

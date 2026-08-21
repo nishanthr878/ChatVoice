@@ -21,7 +21,10 @@ Sierra/Decagon's real IP is not "LLM + tools." It's a policy-bounded orchestrati
 - No multi-tenancy, auth, billing, or anything enterprise-SaaS-shaped.
 - No generalized "tool plugin marketplace" or dynamic flow registry — config-driven graph per flow is enough until a third flow proves it isn't.
 - No voice.
-- No production-grade deployment (Docker/K8s/etc.) — this is a local learning build first.
+- No production-grade deployment (Docker/K8s/etc.) — this is a local learning build first. **Update:** this is now actively being reconsidered — a live server demo is planned, which will require containerizing both the Spring app and the Flask order service (see decisions-log D18 and the architecture doc's latest status for current scope).
+- Proactive VA-initiated greeting (VA speaks first before any user input) is deferred — see decisions-log D18. The system remains purely reactive for now: every turn is a response to an incoming user message, never system-initiated.
+
+**Note on this doc's currency:** this file was written pre-implementation and is now stale in several places (e.g. "exactly two flows" — a third, `intent_classification`, was added and is core to routing; scope has grown to include a REST API and demo widget). Treat `decisions-log.md` and direct project state as the source of truth over this file's specific claims; this doc captures original intent/reasoning, not current status.
 
 ## Existing relevant background
 

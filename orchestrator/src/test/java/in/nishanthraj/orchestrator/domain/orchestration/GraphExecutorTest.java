@@ -15,7 +15,7 @@ public class GraphExecutorTest {
         return new Flow() {
             @Override
             public String flowType() {
-                return "check_order_status";
+                return "intent_classification";
             }
 
             @Override
@@ -29,12 +29,12 @@ public class GraphExecutorTest {
     void newConversationGetsCreatedAndDispatchesToFlow() {
         ConversationRepository repo = new InMemoryConversationRepository();
         TurnRepository turnRepo = new InMemoryTurnRepository();
-        Map<String, Flow> flows = Map.of("check_order_status", trivialFlow());
+        Map<String, Flow> flows = Map.of("intent_classification", trivialFlow());
         GraphExecutor executor = new GraphExecutor(repo, turnRepo, flows);
 
         String result = executor.step("brand-new-conversation-id","hello");
 
         assertEquals("Got it, thanks!", result);
-        assertEquals("check_order_status", repo.getFlowType("brand-new-conversation-id"));
+        assertEquals("intent_classification", repo.getFlowType("brand-new-conversation-id"));
     }
 }

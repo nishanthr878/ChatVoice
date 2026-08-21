@@ -1,11 +1,15 @@
-package in.nishanthraj.orchestrator.adapter.consumer;
+package in.nishanthraj.orchestrator.adapter.web;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+
+import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
@@ -13,15 +17,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
-class ConversationEventConsumerTest {
+@AutoConfigureTestRestTemplate
+class ConversationControllerTest {
 
     @Container
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:16-alpine").withInitScript("init.sql");
@@ -38,10 +44,7 @@ class ConversationEventConsumerTest {
     }
 
     @Autowired
-    private KafkaTemplate<String, String> kafkaTemplate;
-
-    @Autowired
-    private JdbcTemplate jdbc;
+    private TestRestTemplate restTemplate;
 
     private String conversationId;
 
@@ -51,20 +54,17 @@ class ConversationEventConsumerTest {
     }
 
     @Test
-    void publishedMessageResultsInPersistedConversationAndTurn() {
-        String payload = "{\"speaker\":\"user\",\"content\":\"integration test message\"}";
-        kafkaTemplate.send("conversation-events", conversationId, payload);
+    void sendMessageAndPollForResponse() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> request = new HttpEntity<>("{\"content\":\"hello\"}", headers);
 
-        await().atMost(30, TimeUnit.SECONDS)
-                .ignoreExceptions()
-                .untilAsserted(() -> {
-                    String currentNode = jdbc.queryForObject(
-                            "SELECT current_node FROM conversation WHERE conversation_id = ?::uuid",
-                            String.class, conversationId
-                    );
-                    // "integration test message" contains no order number, so collect_order_id's
-                    // LLM extraction should return NONE and the node stays at collect_order_id
-                    assertEquals("classify", currentNode);
-                });
+        restTemplate.postForEntity("/api/conversations/" + conversationId + "/messages", request, Void.class);
+
+        await().atMost(30, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(() -> {
+            List<?> turns = restTemplate.getForObject("/api/conversations/" + conversationId + "/turns", List.class);
+            assertNotNull(turns);
+            assertEquals(2, turns.size());
+        });
     }
 }
