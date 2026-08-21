@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.persistence;
 
-import in.nishanthraj.orchestrator.domain.TurnRepository;
+import in.nishanthraj.orchestrator.domain.port.TurnRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 

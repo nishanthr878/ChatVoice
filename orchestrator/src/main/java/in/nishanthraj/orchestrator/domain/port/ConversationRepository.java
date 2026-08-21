@@ -1,6 +1,4 @@
-package in.nishanthraj.orchestrator.domain;
-
-import in.nishanthraj.orchestrator.adapter.consumer.TurnPayload;
+package in.nishanthraj.orchestrator.domain.port;
 
 public interface ConversationRepository {
     String getCurrentNode(String conversationId);

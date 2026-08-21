@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.port;
 
 public class StubLlmClient implements LlmClient {
 

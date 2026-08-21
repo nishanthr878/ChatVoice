@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.port;
 
 import org.junit.jupiter.api.Test;
 import java.util.Optional;

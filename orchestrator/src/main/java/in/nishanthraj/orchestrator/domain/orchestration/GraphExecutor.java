@@ -1,5 +1,7 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.orchestration;
 
+import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.TurnRepository;
 import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.UUID;

@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.persistence;
 
-import in.nishanthraj.orchestrator.domain.ConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

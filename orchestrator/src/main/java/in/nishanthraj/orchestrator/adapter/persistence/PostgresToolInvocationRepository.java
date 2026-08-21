@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.persistence;
 
-import in.nishanthraj.orchestrator.domain.ToolInvocationRepository;
+import in.nishanthraj.orchestrator.domain.port.ToolInvocationRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 

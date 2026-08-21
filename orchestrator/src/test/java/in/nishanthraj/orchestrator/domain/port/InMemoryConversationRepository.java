@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.port;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -35,7 +35,7 @@ public class InMemoryConversationRepository implements ConversationRepository {
         return flowTypes.get(conversationId);
     }
 
-    public static class InMemoryToolInvocationRepository implements  ToolInvocationRepository {
+    public static class InMemoryToolInvocationRepository implements ToolInvocationRepository {
 
         private final Map<String, String> results = new HashMap<>();
         private final Map<String, String> pending = new HashMap<>();

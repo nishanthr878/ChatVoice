@@ -1,5 +1,9 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.flow;
 
+import in.nishanthraj.orchestrator.domain.orchestration.Flow;
+import in.nishanthraj.orchestrator.domain.orchestration.NodeHandler;
+import in.nishanthraj.orchestrator.domain.port.*;
+import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.Map;
@@ -14,18 +18,21 @@ public class CheckOrderStatusFlow implements Flow {
     private final LlmClient llmClient;
     private final OrderServiceClient orderServiceClient;
     private final ObjectMapper objectMapper;
+    private final OrderLookupHelper orderLookupHelper;
 
     public CheckOrderStatusFlow(ConversationRepository conversationRepository,
                                 SlotRepository slotRepository,
                                 ToolInvocationRepository toolInvocationRepository,
                                 LlmClient llmClient,
                                 OrderServiceClient orderServiceClient,
+                                OrderLookupHelper orderLookupHelper,
                                 ObjectMapper objectMapper) {
         this.conversationRepository = conversationRepository;
         this.slotRepository = slotRepository;
         this.toolInvocationRepository = toolInvocationRepository;
         this.llmClient = llmClient;
         this.orderServiceClient = orderServiceClient;
+        this.orderLookupHelper = orderLookupHelper;
         this.objectMapper = objectMapper;
         this.nodes = Map.of(
                 "collect_order_id", this::handleCollectOrderId,
@@ -65,37 +72,18 @@ public class CheckOrderStatusFlow implements Flow {
 
     private String handleLookupOrder(String conversationId, String turnId, String input) {
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
-
-        if(orderIdSlot.isEmpty()) {
-            toolInvocationRepository.recordCallFinished(conversationId, turnId, "lookup_order", "", "failed");
+        if (orderIdSlot.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I couldn't find an order with that number.";
         }
         String orderId = orderIdSlot.get();
 
-        Optional<String> cachedResult = toolInvocationRepository.getResultIfCompleted(conversationId, turnId, "lookup_order");
-        String resultJson;
-
-        if (cachedResult.isPresent()) {
-            resultJson = cachedResult.get();
-        } else {
-            toolInvocationRepository.recordCallStarting(conversationId, turnId, "lookup_order", orderId);
-
-            Optional<OrderServiceClient.OrderDetails> orderDetails = orderServiceClient.getOrder(orderId);
-
-            if (orderDetails.isEmpty()) {
-                toolInvocationRepository.recordCallFinished(conversationId, turnId, "lookup_order", "", "failed");
-                conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
-                return "I couldn't find an order with that number.";
-            }
-
-            // storing the raw order_id/status here is a simplification — real production code would
-            // serialize the full OrderDetails record back to JSON via ObjectMapper before storing it,
-            // so respond_with_details can deserialize it properly. Flagging, not hiding.
-            resultJson = objectMapper.writeValueAsString(orderDetails.get());
-            slotRepository.saveSlot(conversationId, "order_details_json", resultJson);
-            toolInvocationRepository.recordCallFinished(conversationId, turnId, "lookup_order", resultJson, "executed");
+        Optional<String> resultJson = orderLookupHelper.lookupOrder(conversationId, turnId, orderId);
+        if (resultJson.isEmpty()) {
+            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
+            return "I couldn't find an order with that number.";
         }
+        slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
 
         conversationRepository.updateCurrentNode(conversationId, "collect_item");
         return "Found your order. What item would you like to know about?";
@@ -140,18 +128,13 @@ public class CheckOrderStatusFlow implements Flow {
     private String handleMatchItem(String conversationId, String turnId, String input) {
         Optional<String> matchedDescription = slotRepository.getSlot(conversationId, "matched_item_description");
         Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
-
         if (matchedDescription.isEmpty() || orderResultJson.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "Something went wrong tracking that item. Let me connect you with a human agent.";
         }
-
         OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
 
-        Optional<OrderServiceClient.OrderLine> foundLine = orderDetails.orderLines().stream()
-                .filter(line -> line.description().equals(matchedDescription.get()))
-                .findFirst();
-
+        Optional<OrderServiceClient.OrderLine> foundLine = orderLookupHelper.findMatchingLine(orderDetails, matchedDescription.get());
         if (foundLine.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I lost track of which item you meant. Let me connect you with a human agent.";

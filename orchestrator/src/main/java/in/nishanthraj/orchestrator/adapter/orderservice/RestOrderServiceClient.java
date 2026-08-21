@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.orderservice;
 
-import in.nishanthraj.orchestrator.domain.OrderServiceClient;
+import in.nishanthraj.orchestrator.domain.port.OrderServiceClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;

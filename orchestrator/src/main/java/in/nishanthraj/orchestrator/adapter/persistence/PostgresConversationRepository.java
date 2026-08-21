@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.persistence;
 
-import in.nishanthraj.orchestrator.domain.ConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;

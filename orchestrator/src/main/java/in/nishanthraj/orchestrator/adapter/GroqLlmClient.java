@@ -1,7 +1,7 @@
 package in.nishanthraj.orchestrator.adapter;
 
 import org.springframework.ai.chat.model.ChatModel;
-import in.nishanthraj.orchestrator.domain.LlmClient;
+import in.nishanthraj.orchestrator.domain.port.LlmClient;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Component;
 

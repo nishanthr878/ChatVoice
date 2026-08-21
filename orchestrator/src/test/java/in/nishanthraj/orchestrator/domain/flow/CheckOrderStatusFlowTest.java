@@ -1,6 +1,11 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.flow;
 
-import in.nishanthraj.orchestrator.adapter.orderservice.RestOrderServiceClient; // remove if not needed
+import in.nishanthraj.orchestrator.domain.port.InMemoryConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.InMemoryOrderServiceClient;
+import in.nishanthraj.orchestrator.domain.port.InMemorySlotRepository;
+import in.nishanthraj.orchestrator.domain.port.LlmClient;
+import in.nishanthraj.orchestrator.domain.port.OrderServiceClient;
+import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
 
@@ -28,6 +33,7 @@ class CheckOrderStatusFlowTest {
         InMemoryConversationRepository.InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryConversationRepository.InMemoryToolInvocationRepository();
         InMemoryOrderServiceClient orderServiceClient = new InMemoryOrderServiceClient();
         ObjectMapper objectMapper = new ObjectMapper();
+        OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository,  objectMapper);
 
         orderServiceClient.seed("1001", new OrderServiceClient.OrderDetails(
                 "1001", "created",
@@ -38,7 +44,7 @@ class CheckOrderStatusFlowTest {
 
         CheckOrderStatusFlow flow = new CheckOrderStatusFlow(
                 conversationRepository, slotRepository, toolInvocationRepository,
-                llmClient, orderServiceClient, objectMapper
+                llmClient, orderServiceClient, orderLookupHelper, objectMapper
         );
 
         String conversationId = "test-conversation";
@@ -69,6 +75,7 @@ class CheckOrderStatusFlowTest {
         InMemoryConversationRepository.InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryConversationRepository.InMemoryToolInvocationRepository();
         InMemoryOrderServiceClient orderServiceClient = new InMemoryOrderServiceClient();
         ObjectMapper objectMapper = new ObjectMapper();
+        OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository, objectMapper);
 
         orderServiceClient.seed("1001", new OrderServiceClient.OrderDetails(
                 "1001", "created",
@@ -79,7 +86,7 @@ class CheckOrderStatusFlowTest {
 
         CheckOrderStatusFlow flow = new CheckOrderStatusFlow(
                 conversationRepository, slotRepository, toolInvocationRepository,
-                llmClient, orderServiceClient, objectMapper
+                llmClient, orderServiceClient, orderLookupHelper,  objectMapper
         );
 
         String conversationId = "test-conversation-2";

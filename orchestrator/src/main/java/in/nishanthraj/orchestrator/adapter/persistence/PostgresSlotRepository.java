@@ -1,6 +1,6 @@
 package in.nishanthraj.orchestrator.adapter.persistence;
 
-import in.nishanthraj.orchestrator.domain.SlotRepository;
+import in.nishanthraj.orchestrator.domain.port.SlotRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 

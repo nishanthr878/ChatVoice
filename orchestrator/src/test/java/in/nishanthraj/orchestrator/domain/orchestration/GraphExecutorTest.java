@@ -1,8 +1,11 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.orchestration;
 
+import in.nishanthraj.orchestrator.domain.port.InMemoryConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.InMemoryTurnRepository;
+import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
+import in.nishanthraj.orchestrator.domain.port.TurnRepository;
 import org.junit.jupiter.api.Test;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

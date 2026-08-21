@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.domain;
+package in.nishanthraj.orchestrator.domain.port;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;

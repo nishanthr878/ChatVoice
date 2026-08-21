@@ -1,7 +1,7 @@
     package in.nishanthraj.orchestrator.adapter.consumer;
 
 
-    import in.nishanthraj.orchestrator.domain.GraphExecutor;
+    import in.nishanthraj.orchestrator.domain.orchestration.GraphExecutor;
     import org.apache.kafka.clients.consumer.ConsumerRecord;
     import org.slf4j.Logger;
     import org.slf4j.LoggerFactory;

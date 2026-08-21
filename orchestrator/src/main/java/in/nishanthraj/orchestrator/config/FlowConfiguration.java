@@ -1,6 +1,9 @@
 package in.nishanthraj.orchestrator.config;
 
-import in.nishanthraj.orchestrator.domain.*;
+import in.nishanthraj.orchestrator.domain.flow.CheckOrderStatusFlow;
+import in.nishanthraj.orchestrator.domain.orchestration.Flow;
+import in.nishanthraj.orchestrator.domain.port.*;
+import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
@@ -17,11 +20,14 @@ public class FlowConfiguration {
                                          LlmClient llmClient,
                                          OrderServiceClient orderServiceClient,
                                          ObjectMapper objectMapper) {
+        OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository, objectMapper);
+
         CheckOrderStatusFlow checkOrderStatusFlow = new CheckOrderStatusFlow(conversationRepository,
                                                                                 slotRepository,
                                                                                 toolInvocationRepository,
                                                                                 llmClient,
                                                                                 orderServiceClient,
+                                                                                orderLookupHelper,
                                                                                 objectMapper);
 
         return Map.of(checkOrderStatusFlow.flowType(), checkOrderStatusFlow);
