@@ -158,7 +158,12 @@ public class CheckOrderStatusFlow implements Flow {
 
         OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
 
-        return "Order " + orderDetails.orderId() + " (" + orderDetails.status() + "): "
+        String response = "Order " + orderDetails.orderId() + " (" + orderDetails.status() + "): "
                 + matchedDescription.get() + " — $" + matchedPrice.get();
+
+        conversationRepository.updateFlowType(conversationId, "intent_classification");
+        conversationRepository.updateCurrentNode(conversationId, "classify");
+
+        return response;
     }
 }

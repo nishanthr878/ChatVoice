@@ -157,8 +157,13 @@ public class ProcessReturnFlow implements Flow {
             return "Something went wrong processing your return. Let me connect you with a human agent.";
         }
 
-        return "Your return for " + matchedDescription.get() + " ($" + matchedPrice.get()
+        String response = "Your return for " + matchedDescription.get() + " ($" + matchedPrice.get()
                 + ") has been processed. Reason: " + returnReason.get() + ". You'll receive a refund confirmation shortly.";
+
+        conversationRepository.updateFlowType(conversationId, "intent_classification");
+        conversationRepository.updateCurrentNode(conversationId, "classify");
+
+        return response;
     }
 
     private String handleEscalateToAgent(String conversationId, String turnId, String input) {
