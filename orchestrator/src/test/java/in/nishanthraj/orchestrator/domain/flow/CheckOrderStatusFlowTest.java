@@ -1,10 +1,6 @@
 package in.nishanthraj.orchestrator.domain.flow;
 
-import in.nishanthraj.orchestrator.domain.port.InMemoryConversationRepository;
-import in.nishanthraj.orchestrator.domain.port.InMemoryOrderServiceClient;
-import in.nishanthraj.orchestrator.domain.port.InMemorySlotRepository;
-import in.nishanthraj.orchestrator.domain.port.LlmClient;
-import in.nishanthraj.orchestrator.domain.port.OrderServiceClient;
+import in.nishanthraj.orchestrator.domain.port.*;
 import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -30,7 +26,7 @@ class CheckOrderStatusFlowTest {
     void fullCheckOrderStatusFlowEndToEnd() {
         InMemoryConversationRepository conversationRepository = new InMemoryConversationRepository();
         InMemorySlotRepository slotRepository = new InMemorySlotRepository();
-        InMemoryConversationRepository.InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryConversationRepository.InMemoryToolInvocationRepository();
+        InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryToolInvocationRepository();
         InMemoryOrderServiceClient orderServiceClient = new InMemoryOrderServiceClient();
         ObjectMapper objectMapper = new ObjectMapper();
         OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository,  objectMapper);
@@ -72,7 +68,7 @@ class CheckOrderStatusFlowTest {
     void flowWorksAcrossDifferentTurnIds() {
         InMemoryConversationRepository conversationRepository = new InMemoryConversationRepository();
         InMemorySlotRepository slotRepository = new InMemorySlotRepository();
-        InMemoryConversationRepository.InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryConversationRepository.InMemoryToolInvocationRepository();
+        InMemoryToolInvocationRepository toolInvocationRepository = new InMemoryToolInvocationRepository();
         InMemoryOrderServiceClient orderServiceClient = new InMemoryOrderServiceClient();
         ObjectMapper objectMapper = new ObjectMapper();
         OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository, objectMapper);
