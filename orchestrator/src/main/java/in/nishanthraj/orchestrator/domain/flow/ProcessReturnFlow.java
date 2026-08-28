@@ -38,9 +38,8 @@ public class ProcessReturnFlow implements Flow {
         this.objectMapper = objectMapper;
         this.orderLookupHelper = orderLookupHelper;
         this.nodes = Map.of(
-                "collect_order_id", this::handleCollectOrderId,
-                "collect_item", this::handleCollectItem,
-                "collect_return_reason", this::handleCollectReturnReason,
+                "collect_order_id", this::handleCollectDetails,
+                "lookup_order", this::handleLookupOrder,
                 "check_threshold", this::handleCheckThreshold,
                 "auto_process", this::handleAutoProcess,
                 "escalate_to_agent", this::handleEscalateToAgent
@@ -145,6 +144,70 @@ public class ProcessReturnFlow implements Flow {
         return foundLine.get().unitPrice() <= RETURN_APPROVAL_THRESHOLD
                 ? "Let me process that for you."
                 : "This return needs approval from a human agent — connecting you now.";
+    }
+
+    private String handleCollectDetails(String conversationId, String turnId, String input) {
+        Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
+
+        String prompt = "Extract the order number, item description, and/or return reason mentioned in this message, if present.\n"
+                + "Respond in exactly this format, three lines:\n"
+                + "ORDER_ID: <the order number, or NONE if not mentioned>\n"
+                + "ITEM: <the item description, or NONE if not mentioned>\n"
+                + "REASON: <the return reason, or NONE if not mentioned>\n\n"
+                + "Message: " + input;
+
+        String response = llmClient.complete(prompt);
+        String[] lines = response.split("\n");
+
+        String extractedOrderId = lines.length > 0 ? lines[0].replace("ORDER_ID:", "").trim() : "NONE";
+        String extractedItem = lines.length > 1 ? lines[1].replace("ITEM:", "").trim() : "NONE";
+        String extractedReason = lines.length > 2 ? lines[2].replace("REASON:", "").trim() : "NONE";
+
+        if (existingOrderId.isEmpty() && !extractedOrderId.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "order_id", extractedOrderId);
+        }
+        if (!extractedItem.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "matched_item_description", extractedItem);
+        }
+        if (!extractedReason.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "return_reason", extractedReason);
+        }
+
+        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
+        if (orderIdSlot.isEmpty()) {
+            return "Sure, I can help with that. What's your order number?";
+        }
+
+        Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
+        if (itemSlot.isEmpty()) {
+            return "Got it. Which item would you like to return?";
+        }
+
+        Optional<String> reasonSlot = slotRepository.getSlot(conversationId, "return_reason");
+        if (reasonSlot.isEmpty()) {
+            return "Thanks. What's the reason for the return?";
+        }
+
+        conversationRepository.updateCurrentNode(conversationId, "lookup_order");
+        return "Got all the details. Let me pull that up for you.";
+    }
+
+    private String handleLookupOrder(String conversationId, String turnId, String input) {
+        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
+        if (orderIdSlot.isEmpty()) {
+            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
+            return "Something went wrong tracking your order. Let me connect you with a human agent.";
+        }
+
+        Optional<String> resultJson = orderLookupHelper.lookupOrder(conversationId, turnId, orderIdSlot.get());
+        if (resultJson.isEmpty()) {
+            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
+            return "I couldn't find an order with that number.";
+        }
+        slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
+
+        conversationRepository.updateCurrentNode(conversationId, "check_threshold");
+        return "Thanks, let me check on that for you.";
     }
 
     private String handleAutoProcess(String conversationId, String turnId, String input) {

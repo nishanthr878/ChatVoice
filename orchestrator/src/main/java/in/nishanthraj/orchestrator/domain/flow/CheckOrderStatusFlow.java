@@ -35,11 +35,10 @@ public class CheckOrderStatusFlow implements Flow {
         this.orderLookupHelper = orderLookupHelper;
         this.objectMapper = objectMapper;
         this.nodes = Map.of(
-                "collect_order_id", this::handleCollectOrderId,
+                "collect_order_id", this::handleCollectDetails,
                 "lookup_order", this::handleLookupOrder,
                 "escalate_to_agent", this::handleEscalateToAgent,
                 "collect_item", this::handleCollectItem,
-                "match_item", this::handleMatchItem,
                 "respond_with_details", this::handleRespondWithDetails
         );
     }
@@ -143,6 +142,42 @@ public class CheckOrderStatusFlow implements Flow {
         slotRepository.saveSlot(conversationId, "matched_item_price", String.valueOf(foundLine.get().unitPrice()));
         conversationRepository.updateCurrentNode(conversationId, "respond_with_details");
         return "Here's the info on that item: " + foundLine.get().description() + " — $" + foundLine.get().unitPrice();
+    }
+
+    private String handleCollectDetails(String conversationId, String turnId, String input) {
+        Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
+
+        String prompt = "Extract the order number and/or item description mentioned in this message, if present.\n"
+                + "Respond in exactly this format, two lines:\n"
+                + "ORDER_ID: <the order number, or NONE if not mentioned>\n"
+                + "ITEM: <the item description, or NONE if not mentioned>\n\n"
+                + "Message: " + input;
+
+        String response = llmClient.complete(prompt);
+        String[] lines = response.split("\n");
+
+        String extractedOrderId = lines.length > 0 ? lines[0].replace("ORDER_ID:", "").trim() : "NONE";
+        String extractedItem = lines.length > 1 ? lines[1].replace("ITEM:", "").trim() : "NONE";
+
+        if (existingOrderId.isEmpty() && !extractedOrderId.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "order_id", extractedOrderId);
+        }
+        if (!extractedItem.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "matched_item_description", extractedItem);
+        }
+
+        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
+        Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
+
+        if (orderIdSlot.isEmpty()) {
+            return "Sure, I can help with that. What's your order number?";
+        }
+        if (itemSlot.isEmpty()) {
+            return "Got it. Which item would you like to know about?";
+        }
+
+        conversationRepository.updateCurrentNode(conversationId, "lookup_order");
+        return "Thanks! Let me pull that up for you.";
     }
 
     private String handleRespondWithDetails(String conversationId, String turnId, String input) {
