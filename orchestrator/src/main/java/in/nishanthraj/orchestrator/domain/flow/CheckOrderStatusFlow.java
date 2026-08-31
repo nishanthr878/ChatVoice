@@ -57,17 +57,7 @@ public class CheckOrderStatusFlow implements Flow {
         return handler;
     }
 
-    private String handleCollectOrderId(String conversationId, String turnId, String input) {
-        String prompt = "Extract the order number from this message. Respond with ONLY the order number, nothing else. If no order number is present, respond with exactly: NONE\n\nMessage: " + input;
-        String extracted = llmClient.complete(prompt);
 
-        if (extracted.equals("NONE")) {
-            return "I didn't catch an order number — could you share it again?";
-        }
-        slotRepository.saveSlot(conversationId, "order_id", extracted);
-        conversationRepository.updateCurrentNode(conversationId, "lookup_order");
-        return "Thanks! I'll check the status of that order for you.";
-    }
 
     private String handleLookupOrder(String conversationId, String turnId, String input) {
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
@@ -124,25 +114,7 @@ public class CheckOrderStatusFlow implements Flow {
         return "Got it, let me pull up the details for that item.";
     }
 
-    private String handleMatchItem(String conversationId, String turnId, String input) {
-        Optional<String> matchedDescription = slotRepository.getSlot(conversationId, "matched_item_description");
-        Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
-        if (matchedDescription.isEmpty() || orderResultJson.isEmpty()) {
-            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
-            return "Something went wrong tracking that item. Let me connect you with a human agent.";
-        }
-        OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
-
-        Optional<OrderServiceClient.OrderLine> foundLine = orderLookupHelper.findMatchingLine(orderDetails, matchedDescription.get());
-        if (foundLine.isEmpty()) {
-            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
-            return "I lost track of which item you meant. Let me connect you with a human agent.";
-        }
-
-        slotRepository.saveSlot(conversationId, "matched_item_price", String.valueOf(foundLine.get().unitPrice()));
-        conversationRepository.updateCurrentNode(conversationId, "respond_with_details");
-        return "Here's the info on that item: " + foundLine.get().description() + " — $" + foundLine.get().unitPrice();
-    }
+    
 
     private String handleCollectDetails(String conversationId, String turnId, String input) {
         Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
