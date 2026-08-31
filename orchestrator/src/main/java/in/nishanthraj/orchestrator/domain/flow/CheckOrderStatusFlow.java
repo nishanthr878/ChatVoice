@@ -57,6 +57,13 @@ public class CheckOrderStatusFlow implements Flow {
         return handler;
     }
 
+    private String phraseNaturally(String instruction) {
+        String prompt = "You are VA, a friendly order-support assistant. " + instruction
+                + " Keep it to one short sentence, no preamble.";
+        return llmClient.complete(prompt);
+    }
+
+
 
 
     private String handleLookupOrder(String conversationId, String turnId, String input) {
@@ -114,7 +121,7 @@ public class CheckOrderStatusFlow implements Flow {
         return "Got it, let me pull up the details for that item.";
     }
 
-    
+
 
     private String handleCollectDetails(String conversationId, String turnId, String input) {
         Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
@@ -139,17 +146,17 @@ public class CheckOrderStatusFlow implements Flow {
         }
 
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
-        Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
-
         if (orderIdSlot.isEmpty()) {
-            return "Sure, I can help with that. What's your order number?";
+            return phraseNaturally("Ask the user for their order number, in a friendly, brief way.");
         }
+
+        Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
         if (itemSlot.isEmpty()) {
-            return "Got it. Which item would you like to know about?";
+            return phraseNaturally("Acknowledge you have their order number, then ask which item they mean, briefly.");
         }
 
         conversationRepository.updateCurrentNode(conversationId, "lookup_order");
-        return "Thanks! Let me pull that up for you.";
+        return phraseNaturally("Let the user know you're looking up their order now, briefly.");
     }
 
     private String handleRespondWithDetails(String conversationId, String turnId, String input) {
