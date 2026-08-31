@@ -38,7 +38,11 @@ class ProcessReturnFlowTest {
                 List.of(new OrderServiceClient.OrderLine("item-1", "Phone Case", 8.99))
         ));
 
-        QueuedLlmClient llmClient = new QueuedLlmClient("ORDER_ID: 2002\nITEM: Phone Case\nREASON: wrong color");
+        // 1: extraction  2: phraseNaturally "pulling up order details"
+        QueuedLlmClient llmClient = new QueuedLlmClient(
+                "ORDER_ID: 2002\nITEM: Phone Case\nREASON: wrong color",
+                "Let me pull that up for you."
+        );
 
         ProcessReturnFlow flow = new ProcessReturnFlow(
                 conversationRepository, slotRepository, toolInvocationRepository,
@@ -79,10 +83,16 @@ class ProcessReturnFlowTest {
                 List.of(new OrderServiceClient.OrderLine("item-1", "Blue T-Shirt", 19.99))
         ));
 
+        // Turn 1: extraction (order only) -> phraseNaturally asks for item
+        // Turn 2: extraction (item only)  -> phraseNaturally asks for reason
+        // Turn 3: extraction (reason only) -> phraseNaturally "pulling up order"
         QueuedLlmClient llmClient = new QueuedLlmClient(
                 "ORDER_ID: 1001\nITEM: NONE\nREASON: NONE",
+                "Got it — which item would you like to return?",
                 "ORDER_ID: NONE\nITEM: Blue T-Shirt\nREASON: NONE",
-                "ORDER_ID: NONE\nITEM: NONE\nREASON: doesn't fit"
+                "Thanks — why would you like to return it?",
+                "ORDER_ID: NONE\nITEM: NONE\nREASON: doesn't fit",
+                "Let me pull that up for you."
         );
 
         ProcessReturnFlow flow = new ProcessReturnFlow(
@@ -93,13 +103,11 @@ class ProcessReturnFlowTest {
         String conversationId = "return-slot-fill-separate";
         conversationRepository.create(conversationId, "chat", "process_return", "collect_order_id");
 
-        String r1 = flow.handlerFor("collect_order_id").handle(conversationId, "t1", "order 1001");
+        flow.handlerFor("collect_order_id").handle(conversationId, "t1", "order 1001");
         assertEquals("collect_order_id", conversationRepository.getCurrentNode(conversationId));
-        assertTrue(r1.toLowerCase().contains("item"));
 
-        String r2 = flow.handlerFor("collect_order_id").handle(conversationId, "t2", "the blue t-shirt");
+        flow.handlerFor("collect_order_id").handle(conversationId, "t2", "the blue t-shirt");
         assertEquals("collect_order_id", conversationRepository.getCurrentNode(conversationId));
-        assertTrue(r2.toLowerCase().contains("reason"));
 
         flow.handlerFor("collect_order_id").handle(conversationId, "t3", "it doesn't fit");
         assertEquals("lookup_order", conversationRepository.getCurrentNode(conversationId));

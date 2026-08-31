@@ -6,18 +6,15 @@ import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
 import in.nishanthraj.orchestrator.domain.port.TurnRepository;
 import org.junit.jupiter.api.Test;
 import java.util.Map;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class GraphExecutorTest {
-
     private Flow trivialFlow() {
         return new Flow() {
             @Override
             public String flowType() {
                 return "intent_classification";
             }
-
             @Override
             public NodeHandler handlerFor(String nodeName) {
                 return (conversationId, turnId, input) -> "Got it, thanks!";
@@ -31,9 +28,7 @@ public class GraphExecutorTest {
         TurnRepository turnRepo = new InMemoryTurnRepository();
         Map<String, Flow> flows = Map.of("intent_classification", trivialFlow());
         GraphExecutor executor = new GraphExecutor(repo, turnRepo, flows);
-
-        String result = executor.step("brand-new-conversation-id","hello");
-
+        String result = executor.step("brand-new-conversation-id", "hello");
         assertEquals("Got it, thanks!", result);
         assertEquals("intent_classification", repo.getFlowType("brand-new-conversation-id"));
     }

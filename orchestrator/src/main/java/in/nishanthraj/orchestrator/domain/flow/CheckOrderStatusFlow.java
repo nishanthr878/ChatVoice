@@ -38,7 +38,6 @@ public class CheckOrderStatusFlow implements Flow {
                 "collect_order_id", this::handleCollectDetails,
                 "lookup_order", this::handleLookupOrder,
                 "escalate_to_agent", this::handleEscalateToAgent,
-                "collect_item", this::handleCollectItem,
                 "respond_with_details", this::handleRespondWithDetails
         );
     }
@@ -63,9 +62,6 @@ public class CheckOrderStatusFlow implements Flow {
         return llmClient.complete(prompt);
     }
 
-
-
-
     private String handleLookupOrder(String conversationId, String turnId, String input) {
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
         if (orderIdSlot.isEmpty()) {
@@ -81,68 +77,28 @@ public class CheckOrderStatusFlow implements Flow {
         }
         slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
 
-        conversationRepository.updateCurrentNode(conversationId, "collect_item");
-        return "Found your order. What item would you like to know about?";
+        // item was already collected upfront by handleCollectDetails — go straight to the final response,
+        // don't ask for it again
+        conversationRepository.updateCurrentNode(conversationId, "respond_with_details");
+        return phraseNaturally("Let the user know you found their order and are pulling up the item details now, briefly.");
     }
-
-
 
     private String handleEscalateToAgent(String conversationId, String turnId, String input) {
         conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
         return "I wasn't able to find that. Let me connect you with a human agent who can help.";
     }
 
-    private String handleCollectItem(String conversationId, String turnId, String input) {
-        Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
-        if (orderResultJson.isEmpty()) {
-            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
-            return "Something went wrong retrieving your order. Let me connect you with a human agent.";
-        }
-
-        OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
-
-        StringBuilder itemList = new StringBuilder();
-        for (OrderServiceClient.OrderLine line : orderDetails.orderLines()) {
-            itemList.append("- ").append(line.description()).append("\n");
-        }
-
-        String prompt = "The user's order contains these items:\n" + itemList +
-                "\nThe user said: \"" + input + "\"\n" +
-                "Which item description from the list above are they asking about? Respond with ONLY the exact item description from the list, nothing else. If none match, respond with exactly: NONE";
-
-        String matched = llmClient.complete(prompt);
-
-        if (matched.equals("NONE")) {
-            return "I couldn't match that to an item in your order — could you describe it differently?";
-        }
-
-        slotRepository.saveSlot(conversationId, "matched_item_description", matched);
-        conversationRepository.updateCurrentNode(conversationId, "match_item");
-        return "Got it, let me pull up the details for that item.";
-    }
-
-
-
     private String handleCollectDetails(String conversationId, String turnId, String input) {
         Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
 
-        String prompt = "Extract the order number and/or item description mentioned in this message, if present.\n"
-                + "Respond in exactly this format, two lines:\n"
-                + "ORDER_ID: <the order number, or NONE if not mentioned>\n"
-                + "ITEM: <the item description, or NONE if not mentioned>\n\n"
+        String prompt = "Extract the order number mentioned in this message, if present.\n"
+                + "Respond with ONLY the order number, or NONE if not mentioned.\n\n"
                 + "Message: " + input;
 
-        String response = llmClient.complete(prompt);
-        String[] lines = response.split("\n");
+        String extracted = llmClient.complete(prompt);
 
-        String extractedOrderId = lines.length > 0 ? lines[0].replace("ORDER_ID:", "").trim() : "NONE";
-        String extractedItem = lines.length > 1 ? lines[1].replace("ITEM:", "").trim() : "NONE";
-
-        if (existingOrderId.isEmpty() && !extractedOrderId.equals("NONE")) {
-            slotRepository.saveSlot(conversationId, "order_id", extractedOrderId);
-        }
-        if (!extractedItem.equals("NONE")) {
-            slotRepository.saveSlot(conversationId, "matched_item_description", extractedItem);
+        if (existingOrderId.isEmpty() && !extracted.equals("NONE")) {
+            slotRepository.saveSlot(conversationId, "order_id", extracted);
         }
 
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
@@ -150,30 +106,30 @@ public class CheckOrderStatusFlow implements Flow {
             return phraseNaturally("Ask the user for their order number, in a friendly, brief way.");
         }
 
-        Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
-        if (itemSlot.isEmpty()) {
-            return phraseNaturally("Acknowledge you have their order number, then ask which item they mean, briefly.");
-        }
-
         conversationRepository.updateCurrentNode(conversationId, "lookup_order");
         return phraseNaturally("Let the user know you're looking up their order now, briefly.");
     }
 
     private String handleRespondWithDetails(String conversationId, String turnId, String input) {
-        conversationRepository.updateCurrentNode(conversationId, "respond_with_details");
-
-        Optional<String> matchedDescription = slotRepository.getSlot(conversationId, "matched_item_description");
-        Optional<String> matchedPrice = slotRepository.getSlot(conversationId, "matched_item_price");
         Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
-
-        if (matchedDescription.isEmpty() || matchedPrice.isEmpty() || orderResultJson.isEmpty()) {
+        if (orderResultJson.isEmpty()) {
+            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I couldn't retrieve your order details. Let me connect you with a human agent.";
         }
 
         OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
 
-        String response = "Order " + orderDetails.orderId() + " (" + orderDetails.status() + "): "
-                + matchedDescription.get() + " — $" + matchedPrice.get();
+        StringBuilder itemList = new StringBuilder();
+        for (OrderServiceClient.OrderLine line : orderDetails.orderLines()) {
+            itemList.append("- ").append(line.description()).append(" ($").append(line.unitPrice()).append(")\n");
+        }
+
+        String prompt = "You are VA, a friendly order-support assistant.\n"
+                + "Order " + orderDetails.orderId() + " (status: " + orderDetails.status() + ") contains:\n" + itemList
+                + "\nThe user asked: \"" + input + "\"\n"
+                + "Answer their question using only the order information above. Be brief, one or two sentences.";
+
+        String response = llmClient.complete(prompt);
 
         conversationRepository.updateFlowType(conversationId, "intent_classification");
         conversationRepository.updateCurrentNode(conversationId, "classify");
