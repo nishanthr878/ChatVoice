@@ -61,59 +61,7 @@ public class ProcessReturnFlow implements Flow {
         return handler;
     }
 
-    private String handleCollectOrderId(String conversationId, String turnId, String input) {
-        String prompt = "Extract the order number from this message. Respond with ONLY the order number, nothing else. If no order number is present, respond with exactly: NONE\n\nMessage: " + input;
-        String extracted = llmClient.complete(prompt);
-
-        if (extracted.equals("NONE")) {
-            return "I didn't catch an order number — could you share it again?";
-        }
-
-        slotRepository.saveSlot(conversationId, "order_id", extracted);
-        conversationRepository.updateCurrentNode(conversationId, "collect_item");
-        return "Got it. Which item would you like to return?";
-    }
-
-    private String handleCollectItem(String conversationId, String turnId, String input) {
-        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
-        if (orderIdSlot.isEmpty()) {
-            conversationRepository.updateCurrentNode(conversationId, "order_id");
-            return "Something went wrong tracking your order. Let me connect you with a human agent.";
-        }
-
-        Optional<String> resultJson = orderLookupHelper.lookupOrder(conversationId, turnId, orderIdSlot.get());
-        if (resultJson.isEmpty()) {
-            conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
-            return "I couldn't find an order with that number.";
-        }
-        slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
-
-        OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(resultJson.get(), OrderServiceClient.OrderDetails.class);
-
-        StringBuilder itemList = new StringBuilder();
-        for (OrderServiceClient.OrderLine line : orderDetails.orderLines()) {
-            itemList.append("- ").append(line.description()).append("\n");
-        }
-
-        String prompt = "The user's order contains these items:\n" + itemList +
-                "\nThe user said: \"" + input + "\"\n" +
-                "Which item description from the list above are they asking about? Respond with ONLY the exact item description from the list, nothing else. If none match, respond with exactly: NONE";
-
-        String matched = llmClient.complete(prompt);
-        if (matched.equals("NONE")) {
-            return "I couldn't match that to an item in your order — could you describe it differently?";
-        }
-
-        slotRepository.saveSlot(conversationId, "matched_item_description", matched);
-        conversationRepository.updateCurrentNode(conversationId, "collect_return_reason");
-        return "Got it. What's the reason for the return?";
-    }
-
-    private String handleCollectReturnReason(String conversationId, String turnId, String input) {
-        slotRepository.saveSlot(conversationId, "return_reason", input);
-        conversationRepository.updateCurrentNode(conversationId, "check_threshold");
-        return "Thanks, let me check on that for you.";
-    }
+    
 
     private String handleCheckThreshold(String conversationId, String turnId, String input) {
         Optional<String> matchedDescription = slotRepository.getSlot(conversationId, "matched_item_description");
