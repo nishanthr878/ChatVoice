@@ -4,11 +4,11 @@
 
 ## What this is
 
-A learning project to understand the architecture underneath platforms like Sierra and Decagon (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
+A learning project to understand the architecture underneath platforms like Voice AI Vendor and Voice AI Vendor (enterprise conversational AI agent platforms). Not a portfolio piece, not a startup attempt — the goal is to reverse-engineer and actually build the hard parts, not just read about them.
 
 ## Why this shape
 
-Sierra/Decagon's real IP is not "LLM + tools." It's a policy-bounded orchestration engine where the LLM handles narrow reasoning tasks (classification, slot-filling, response generation) inside a structurally-enforced state graph, backed by durable conversation state and validated, idempotent tool execution. The goal of this project is to build a small, honest version of that — not a demo that looks impressive but falls apart the moment a conversation needs to remember something from three turns ago, or a tool gets called twice.
+Voice AI Vendor/Voice AI Vendor's real IP is not "LLM + tools." It's a policy-bounded orchestration engine where the LLM handles narrow reasoning tasks (classification, slot-filling, response generation) inside a structurally-enforced state graph, backed by durable conversation state and validated, idempotent tool execution. The goal of this project is to build a small, honest version of that — not a demo that looks impressive but falls apart the moment a conversation needs to remember something from three turns ago, or a tool gets called twice.
 
 ## Current scope
 
