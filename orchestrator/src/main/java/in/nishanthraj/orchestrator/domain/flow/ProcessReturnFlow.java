@@ -139,21 +139,21 @@ public class ProcessReturnFlow implements Flow {
 
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
         if (orderIdSlot.isEmpty()) {
-            return phraseNaturally("Ask the user for their order number, in a friendly, brief way.");
+            return phraseNaturally("Ask the user for their order number, in a friendly, brief way. Do not state any specific numbers.");
         }
 
         Optional<String> itemSlot = slotRepository.getSlot(conversationId, "matched_item_description");
         if (itemSlot.isEmpty()) {
-            return phraseNaturally("Acknowledge you have their order number, then ask which item they'd like to return, briefly.");
+            return phraseNaturally("Briefly acknowledge you have their order number, without stating any specific numbers, then ask which item they'd like to return.");
         }
 
         Optional<String> reasonSlot = slotRepository.getSlot(conversationId, "return_reason");
         if (reasonSlot.isEmpty()) {
-            return phraseNaturally("Acknowledge the item, then ask why they'd like to return it, briefly.");
+            return phraseNaturally("Acknowledge the item briefly, without stating any specific numbers or names, then ask why they'd like to return it.");
         }
 
         conversationRepository.updateCurrentNode(conversationId, "lookup_order");
-        return phraseNaturally("Let the user know you're pulling up the order details now, briefly.");
+        return phraseNaturally("Let the user know you're pulling up the order details now, briefly. Do not state any specific numbers.");
     }
 
     private String handleLookupOrder(String conversationId, String turnId, String input) {
