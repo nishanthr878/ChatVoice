@@ -33,6 +33,15 @@ public class IntentClassificationFlow implements Flow {
         return handler;
     }
 
+    @Override
+    public boolean nodeConsumesInput(String nodeName) {
+        return false;
+    }
+
+    @Override
+    public String describeNode(String nodeName) {
+        return "classifying the user's intent";
+    }
 
     private String handleClassify(String conversationId, String turnId, String input) {
         String prompt = "Classify the user's message into exactly one of these categories: "

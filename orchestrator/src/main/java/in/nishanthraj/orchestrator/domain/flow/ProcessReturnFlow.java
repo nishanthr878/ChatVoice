@@ -61,10 +61,20 @@ public class ProcessReturnFlow implements Flow {
         return handler;
     }
 
+    @Override
+    public boolean nodeConsumesInput(String nodeName) {
+        return nodeName.equals("collect_order_id");
+    }
+
     private String phraseNaturally(String instruction) {
         String prompt = "You are VA, a friendly order-support assistant. " + instruction
                 + " Keep it to one short sentence, no preamble.";
         return llmClient.complete(prompt);
+    }
+
+    @Override
+    public String describeNode(String nodeName) {
+        return "processing a return — the assistant needs the order number, which item, and the reason for the return";
     }
 
 

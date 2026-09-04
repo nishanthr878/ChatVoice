@@ -2,6 +2,7 @@ package in.nishanthraj.orchestrator.domain.orchestration;
 
 import in.nishanthraj.orchestrator.domain.port.ConversationRepository;
 import in.nishanthraj.orchestrator.domain.port.TurnRepository;
+import in.nishanthraj.orchestrator.domain.shared.InputBoundaryValidator;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -15,13 +16,16 @@ public class GraphExecutor {
     private final ConversationRepository conversationRepository;
     private final TurnRepository turnRepository;
     private final Map<String, Flow> flowsByType;
+    private final InputBoundaryValidator inputBoundaryValidator;
 
     public GraphExecutor(ConversationRepository conversationRepository,
                          TurnRepository turnRepository,
-                         Map<String, Flow> flowsByType) {
+                         Map<String, Flow> flowsByType,
+                         InputBoundaryValidator inputBoundaryValidator) {
         this.conversationRepository = conversationRepository;
         this.turnRepository = turnRepository;
         this.flowsByType = flowsByType;
+        this.inputBoundaryValidator = inputBoundaryValidator;
     }
 
     public String step(String conversationId, String input) {
@@ -42,6 +46,21 @@ public class GraphExecutor {
             }
 
             String currentNode = conversationRepository.getCurrentNode(conversationId);
+            Flow flow = flowsByType.get(flowType);
+            if (flow == null) {
+                throw new IllegalArgumentException("No flow registered for flow_type: " + flowType);
+            }
+
+            if (!flowType.equals("intent_classification") && flow.nodeConsumesInput(currentNode)) {
+                String taskDescription = flow.describeNode(currentNode);
+                InputValidationResult validation = inputBoundaryValidator.validate(taskDescription, input);
+                if (validation.decision() == InputValidationResult.Decision.SWITCH) {
+                    conversationRepository.updateFlowType(conversationId, "intent_classification");
+                    conversationRepository.updateCurrentNode(conversationId, "classify");
+                    continue;
+                }
+            }
+
             response = dispatch(conversationId, userTurnId, input, flowType);
 
             String nodeAfter = conversationRepository.getCurrentNode(conversationId);

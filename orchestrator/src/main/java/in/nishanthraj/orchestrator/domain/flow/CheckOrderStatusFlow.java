@@ -56,6 +56,16 @@ public class CheckOrderStatusFlow implements Flow {
         return handler;
     }
 
+    @Override
+    public boolean nodeConsumesInput(String nodeName) {
+        return nodeName.equals("collect_order_id") || nodeName.equals("respond_with_details");
+    }
+
+    @Override
+    public String describeNode(String nodeName) {
+        return "checking an order's status — the assistant needs the order number and, once found, can answer questions about it";
+    }
+
     private String phraseNaturally(String instruction) {
         String prompt = "You are VA, a friendly order-support assistant. " + instruction
                 + " Keep it to one short sentence, no preamble.";

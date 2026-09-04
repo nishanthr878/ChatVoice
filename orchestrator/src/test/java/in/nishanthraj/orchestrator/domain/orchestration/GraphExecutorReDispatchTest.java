@@ -3,6 +3,7 @@ package in.nishanthraj.orchestrator.domain.orchestration;
 import in.nishanthraj.orchestrator.domain.flow.CheckOrderStatusFlow;
 import in.nishanthraj.orchestrator.domain.flow.IntentClassificationFlow;
 import in.nishanthraj.orchestrator.domain.port.*;
+import in.nishanthraj.orchestrator.domain.shared.InputBoundaryValidator;
 import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -69,14 +70,17 @@ class GraphExecutorReDispatchTest {
         // 5: handleRespondWithDetails reasoning over full order + raw input
         QueuedLlmClient llmClient = new QueuedLlmClient(
                 "CHECK_ORDER_STATUS",
+                "CONTINUE",
                 "1001",
                 "Let me look that up for you.",
                 "Found it, one moment.",
+                "CONTINUE",
                 "Order 1001 contains a Blue T-Shirt ($19.99) and Running Shoes ($59.99)."
         );
 
         Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
-        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows);
+        InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
+        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
         String conversationId = "full-chain-open-ended";
         String response = executor.step(conversationId, "check order details for 1001 and let me know what items are present there");
@@ -101,12 +105,14 @@ class GraphExecutorReDispatchTest {
         // 3: handleCollectDetails phraseNaturally (asking for order number) — loop stops, node unchanged
         QueuedLlmClient llmClient = new QueuedLlmClient(
                 "CHECK_ORDER_STATUS",
+                "CONTINUE",
                 "NONE",
                 "Could you share your order number?"
         );
 
         Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
-        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows);
+        InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
+        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
         String conversationId = "stops-waiting";
         String response = executor.step(conversationId, "I need help with my order");
@@ -136,16 +142,20 @@ class GraphExecutorReDispatchTest {
         //   respond_with_details reasoning
         QueuedLlmClient llmClient = new QueuedLlmClient(
                 "CHECK_ORDER_STATUS",
+                "CONTINUE",
                 "NONE",
                 "Could you share your order number?",
+                "CONTINUE",
                 "1001",
                 "Let me look that up.",
                 "Found it, one moment.",
+                "CONTINUE",
                 "Your order 1001 is currently in created status."
         );
 
         Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
-        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows);
+        InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
+        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
         String conversationId = "split-turns";
         executor.step(conversationId, "I need help with my order");
@@ -170,7 +180,8 @@ class GraphExecutorReDispatchTest {
         IntentClassificationFlow classificationFlow = new IntentClassificationFlow(conversationRepository, llmClient);
         Map<String, Flow> flows = Map.of("intent_classification", classificationFlow);
 
-        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows);
+        InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
+        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
         String conversationId = "greeting-no-redispatch";
         String response = executor.step(conversationId, "hi");
@@ -199,7 +210,8 @@ class GraphExecutorReDispatchTest {
         );
 
         Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
-        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows);
+        InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
+        GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
         String conversationId = "order-not-found";
         String response = executor.step(conversationId, "check order 9999");

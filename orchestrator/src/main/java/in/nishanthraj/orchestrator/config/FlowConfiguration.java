@@ -5,6 +5,7 @@ import in.nishanthraj.orchestrator.domain.flow.IntentClassificationFlow;
 import in.nishanthraj.orchestrator.domain.flow.ProcessReturnFlow;
 import in.nishanthraj.orchestrator.domain.orchestration.Flow;
 import in.nishanthraj.orchestrator.domain.port.*;
+import in.nishanthraj.orchestrator.domain.shared.InputBoundaryValidator;
 import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,5 +41,10 @@ public class FlowConfiguration {
         return Map.of(checkOrderStatusFlow.flowType(), checkOrderStatusFlow,
                 processReturnFlow.flowType(), processReturnFlow,
                 intentClassificationFlow.flowType(), intentClassificationFlow);
+    }
+
+    @Bean
+    public InputBoundaryValidator inputBoundaryValidator(LlmClient llmClient) {
+        return new InputBoundaryValidator(llmClient);
     }
 }
