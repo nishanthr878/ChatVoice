@@ -41,7 +41,9 @@ class ProcessReturnFlowTest {
         // 1: extraction  2: phraseNaturally "pulling up order details"
         QueuedLlmClient llmClient = new QueuedLlmClient(
                 "ORDER_ID: 2002\nITEM: Phone Case\nREASON: wrong color",
-                "Let me pull that up for you."
+                "Let me pull that up for you.",  // handleCollectDetails's own phraseNaturally call
+                "Phone Case",                     // the re-match call inside handleLookupOrder
+                "Let me pull that up for you."    // handleLookupOrder's own phraseNaturally call
         );
 
         ProcessReturnFlow flow = new ProcessReturnFlow(
@@ -92,6 +94,7 @@ class ProcessReturnFlowTest {
                 "ORDER_ID: NONE\nITEM: Blue T-Shirt\nREASON: NONE",
                 "Thanks — why would you like to return it?",
                 "ORDER_ID: NONE\nITEM: NONE\nREASON: doesn't fit",
+                "Blue T-Shirt",  // the new re-match call
                 "Let me pull that up for you."
         );
 

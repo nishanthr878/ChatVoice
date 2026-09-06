@@ -91,6 +91,8 @@ public class ProcessReturnFlow implements Flow {
         OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(orderResultJson.get(), OrderServiceClient.OrderDetails.class);
         Optional<OrderServiceClient.OrderLine> foundLine = orderLookupHelper.findMatchingLine(orderDetails, matchedDescription.get());
 
+
+
         if (foundLine.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I lost track of which item you meant. Let me connect you with a human agent.";
@@ -158,6 +160,7 @@ public class ProcessReturnFlow implements Flow {
 
     private String handleLookupOrder(String conversationId, String turnId, String input) {
         Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
+
         if (orderIdSlot.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "Something went wrong tracking your order. Let me connect you with a human agent.";
@@ -169,6 +172,28 @@ public class ProcessReturnFlow implements Flow {
             return "I couldn't find an order with that number.";
         }
         slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
+
+        OrderServiceClient.OrderDetails orderDetails = objectMapper.readValue(resultJson.get(), OrderServiceClient.OrderDetails.class);
+        Optional<String> roughItem = slotRepository.getSlot(conversationId, "matched_item_description");
+
+
+
+        if (roughItem.isPresent()) {
+            StringBuilder itemList = new StringBuilder();
+            for (OrderServiceClient.OrderLine line : orderDetails.orderLines()) {
+                itemList.append("- ").append(line.description()).append("\n");
+            }
+
+            String matchPrompt = "The order contains these items:\n" + itemList
+                    + "\nThe user is referring to: \"" + roughItem.get() + "\"\n"
+                    + "Which item description from the list above matches? Respond with ONLY the exact item description from the list, nothing else. If none match, respond with exactly: NONE";
+            String exactMatch = llmClient.complete(matchPrompt);
+            if (!exactMatch.equals("NONE")) {
+                slotRepository.saveSlot(conversationId, "matched_item_description", exactMatch);
+            }
+        }
+
+
 
         conversationRepository.updateCurrentNode(conversationId, "check_threshold");
         return "Thanks, let me check on that for you.";
