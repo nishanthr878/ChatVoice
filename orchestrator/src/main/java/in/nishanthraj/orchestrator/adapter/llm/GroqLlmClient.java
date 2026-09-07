@@ -1,4 +1,4 @@
-package in.nishanthraj.orchestrator.adapter;
+package in.nishanthraj.orchestrator.adapter.llm;
 
 import org.springframework.ai.chat.model.ChatModel;
 import in.nishanthraj.orchestrator.domain.port.LlmClient;
