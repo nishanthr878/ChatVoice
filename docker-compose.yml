@@ -132,11 +132,22 @@ services:
     depends_on:
       - loki
 
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: agent-platform-tempo
+    command: -config.file=/etc/tempo/tempo.yaml
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo/tempo.yaml
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo's own query API
+      - "4317:4317"   # OTLP gRPC receiver — this is what your Spring app sends traces to
+      - "4318:4318"   # OTLP HTTP receiver
 
 volumes:
     pg_data:
     loki_data:
     grafana_data:
-
+    tempo_data:
 
 

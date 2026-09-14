@@ -20,3 +20,20 @@ spring:
 
 order-service:
   base-url: ${ORDER_SERVICE_BASE_URL:http://localhost:5001}
+
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: env, configprops
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    resource-attributes:
+      service.name: va-orchestrator
+    tracing:
+      export:
+        otlp:
+          endpoint: http://tempo:4318/v1/traces
