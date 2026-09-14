@@ -39,6 +39,13 @@ def init_db():
         conn.execute("INSERT INTO orders VALUES ('1003', 'delivered')")
         conn.execute("INSERT INTO order_lines VALUES ('1003', 'item-5', 'Notebook', 4.99)")
 
+        conn.execute("INSERT INTO orders VALUES ('1004', 'delivered')")
+        conn.execute("INSERT INTO order_lines VALUES ('1004', 'item-6', 'Desk Lamp', 34.99)")
+        conn.execute("INSERT INTO order_lines VALUES ('1004', 'item-7', 'USB Cable', 6.99)")
+
+        conn.execute("INSERT INTO orders VALUES ('1005', 'shipped')")
+        conn.execute("INSERT INTO order_lines VALUES ('1005', 'item-8', 'Coffee Mug', 9.99)")
+
 
     conn.commit()
     conn.close()
@@ -63,4 +70,4 @@ def get_order(order_id):
 
 if __name__ == "__main__":
     init_db()
-    app.run(port=5001, debug=True)
+    app.run(host="0.0.0.0", debug=True, port=5001)

@@ -76,5 +76,33 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
 
+  flask-orders:
+    build: ./Python_Backend_to_Simulate_API
+    ports:
+      - "5001:5001"
+
+  orchestrator:
+    build: ./orchestrator
+    ports:
+      - "8080:8080"
+    environment:
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - DB_HOST=postgres
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ORDER_SERVICE_BASE_URL=http://flask-orders:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      flask-orders:
+        condition: service_started
+
+
+  
+
 volumes:
     pg_data:
+
+
+

@@ -35,5 +35,5 @@ out/
 
 ### VS Code ###
 .vscode/
-.env
+../Python_Backend_to_Simulate_API/.env
 
