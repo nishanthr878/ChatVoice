@@ -33,12 +33,12 @@ class GraphExecutorReDispatchTest {
                                          ToolInvocationRepository toolInvocationRepository,
                                          OrderServiceClient orderServiceClient,
                                          ObjectMapper objectMapper,
-                                         LlmClient llmClient) {
+                                         LlmClient llmClient,  ConversationStateRepository conversationStateRepository) {
         OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository, objectMapper);
         IntentClassificationFlow classificationFlow = new IntentClassificationFlow(conversationRepository, llmClient);
         CheckOrderStatusFlow checkOrderStatusFlow = new CheckOrderStatusFlow(
                 conversationRepository, slotRepository, toolInvocationRepository,
-                llmClient, orderServiceClient, orderLookupHelper, objectMapper
+                llmClient, orderServiceClient, orderLookupHelper, objectMapper, conversationStateRepository
         );
         return Map.of(
                 "intent_classification", classificationFlow,
@@ -75,11 +75,11 @@ class GraphExecutorReDispatchTest {
                 "Let me look that up for you.",
                 "Found it, one moment.",
                 "CONTINUE",
-                "SAME",
+                "CURRENT",
                 "Order 1001 contains a Blue T-Shirt ($19.99) and Running Shoes ($59.99)."
         );
-
-        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
+        InMemoryConversationStateRepository conversationStateRepository = new InMemoryConversationStateRepository();
+        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient, conversationStateRepository);
         InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
         GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
@@ -111,7 +111,8 @@ class GraphExecutorReDispatchTest {
                 "Could you share your order number?"
         );
 
-        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
+        InMemoryConversationStateRepository conversationStateRepository = new InMemoryConversationStateRepository();
+        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient, conversationStateRepository);
         InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
         GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
@@ -151,11 +152,12 @@ class GraphExecutorReDispatchTest {
                 "Let me look that up.",
                 "Found it, one moment.",
                 "CONTINUE",
-                "SAME",
+                "CURRENT",
                 "Your order 1001 is currently in created status."
         );
 
-        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
+        InMemoryConversationStateRepository conversationStateRepository = new InMemoryConversationStateRepository();
+        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient, conversationStateRepository);
         InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
         GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 
@@ -211,7 +213,8 @@ class GraphExecutorReDispatchTest {
                 "Let me look that up."
         );
 
-        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
+        InMemoryConversationStateRepository conversationStateRepository = new InMemoryConversationStateRepository();
+        Map<String, Flow> flows = buildFlows(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient, conversationStateRepository);
         InputBoundaryValidator inputBoundaryValidator = new InputBoundaryValidator(llmClient);
         GraphExecutor executor = new GraphExecutor(conversationRepository, turnRepository, flows, inputBoundaryValidator);
 

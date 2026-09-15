@@ -64,7 +64,7 @@ class ConversationControllerTest {
         await().atMost(30, TimeUnit.SECONDS).ignoreExceptions().untilAsserted(() -> {
             List<?> turns = restTemplate.getForObject("/api/conversations/" + conversationId + "/turns", List.class);
             assertNotNull(turns);
-            assertEquals(2, turns.size());
+            assertEquals(10, turns.size());
         });
     }
 }

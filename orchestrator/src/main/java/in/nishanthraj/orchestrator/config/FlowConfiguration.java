@@ -22,7 +22,8 @@ public class FlowConfiguration {
                                          ToolInvocationRepository toolInvocationRepository,
                                          LlmClient llmClient,
                                          OrderServiceClient orderServiceClient,
-                                         ObjectMapper objectMapper) {
+                                         ObjectMapper objectMapper,
+                                         ConversationStateRepository conversationStateRepository) {
         OrderLookupHelper orderLookupHelper = new OrderLookupHelper(orderServiceClient, toolInvocationRepository, objectMapper);
 
         CheckOrderStatusFlow checkOrderStatusFlow = new CheckOrderStatusFlow(conversationRepository,
@@ -31,7 +32,8 @@ public class FlowConfiguration {
                                                                                 llmClient,
                                                                                 orderServiceClient,
                                                                                 orderLookupHelper,
-                                                                                objectMapper);
+                                                                                objectMapper,
+                                                                                conversationStateRepository);
 
         ProcessReturnFlow processReturnFlow = new ProcessReturnFlow(conversationRepository,
                 slotRepository, toolInvocationRepository, llmClient,orderServiceClient, objectMapper, orderLookupHelper);

@@ -6,6 +6,7 @@ import in.nishanthraj.orchestrator.domain.port.*;
 import in.nishanthraj.orchestrator.domain.shared.OrderLookupHelper;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -19,6 +20,7 @@ public class CheckOrderStatusFlow implements Flow {
     private final OrderServiceClient orderServiceClient;
     private final ObjectMapper objectMapper;
     private final OrderLookupHelper orderLookupHelper;
+    private final ConversationStateRepository conversationStateRepository;
 
     public CheckOrderStatusFlow(ConversationRepository conversationRepository,
                                 SlotRepository slotRepository,
@@ -26,7 +28,8 @@ public class CheckOrderStatusFlow implements Flow {
                                 LlmClient llmClient,
                                 OrderServiceClient orderServiceClient,
                                 OrderLookupHelper orderLookupHelper,
-                                ObjectMapper objectMapper) {
+                                ObjectMapper objectMapper,
+                                ConversationStateRepository conversationStateRepository) {
         this.conversationRepository = conversationRepository;
         this.slotRepository = slotRepository;
         this.toolInvocationRepository = toolInvocationRepository;
@@ -34,6 +37,7 @@ public class CheckOrderStatusFlow implements Flow {
         this.orderServiceClient = orderServiceClient;
         this.orderLookupHelper = orderLookupHelper;
         this.objectMapper = objectMapper;
+        this.conversationStateRepository = conversationStateRepository;
         this.nodes = Map.of(
                 "collect_order_id", this::handleCollectDetails,
                 "lookup_order", this::handleLookupOrder,
@@ -45,6 +49,11 @@ public class CheckOrderStatusFlow implements Flow {
     @Override
     public String flowType() {
         return "check_order_status";
+    }
+
+    @Override
+    public String describeNode(String nodeName) {
+        return "checking an order's status — the assistant needs the order number and, once found, can answer questions about it";
     }
 
     @Override
@@ -61,24 +70,54 @@ public class CheckOrderStatusFlow implements Flow {
         return nodeName.equals("collect_order_id") || nodeName.equals("respond_with_details");
     }
 
-    @Override
-    public String describeNode(String nodeName) {
-        return "checking an order's status — the assistant needs the order number and, once found, can answer questions about it";
-    }
-
     private String phraseNaturally(String instruction) {
         String prompt = "You are VA, a friendly order-support assistant. " + instruction
                 + " Keep it to one short sentence, no preamble.";
         return llmClient.complete(prompt);
     }
 
+    private String describeKnownOrders(String conversationId, Optional<EntityReference> activeFocus) {
+        List<EntityReference> orders = conversationStateRepository.getEntities(conversationId, "ORDER");
+        if (orders.isEmpty()) return "none yet";
+        StringBuilder sb = new StringBuilder();
+        for (EntityReference order : orders) {
+            boolean isFocus = activeFocus.isPresent() && activeFocus.get().equals(order);
+            sb.append(order.entityId()).append(isFocus ? " (currently focused)" : "").append(", ");
+        }
+        return sb.toString();
+    }
+
+    private String handleCollectDetails(String conversationId, String turnId, String input) {
+        ConversationState state = conversationStateRepository.getOrCreate(conversationId);
+
+        String prompt = "Extract the order number mentioned in this message, if present.\n"
+                + "Respond with ONLY the order number, or NONE if not mentioned.\n\n"
+                + "Message: " + input;
+
+        String extracted = llmClient.complete(prompt);
+
+        if (state.activeFocus().isEmpty() && extracted.equals("NONE")) {
+            return phraseNaturally("Ask the user for their order number, in a friendly, brief way.");
+        }
+
+        if (!extracted.equals("NONE")) {
+            EntityReference order = new EntityReference("ORDER", extracted);
+            conversationStateRepository.applyUpdate(conversationId,
+                    new ConversationStateUpdate(Optional.of("CHECK_ORDER_STATUS"), Optional.of(order), List.of(order)),
+                    state.version());
+        }
+
+        conversationRepository.updateCurrentNode(conversationId, "lookup_order");
+        return phraseNaturally("Let the user know you're looking up their order now, briefly.");
+    }
+
     private String handleLookupOrder(String conversationId, String turnId, String input) {
-        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
-        if (orderIdSlot.isEmpty()) {
+        ConversationState state = conversationStateRepository.getOrCreate(conversationId);
+        if (state.activeFocus().isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I couldn't find an order with that number.";
         }
-        String orderId = orderIdSlot.get();
+        String orderId = state.activeFocus().get().entityId();
 
         Optional<String> resultJson = orderLookupHelper.lookupOrder(conversationId, turnId, orderId);
         if (resultJson.isEmpty()) {
@@ -87,8 +126,6 @@ public class CheckOrderStatusFlow implements Flow {
         }
         slotRepository.saveSlot(conversationId, "order_details_json", resultJson.get());
 
-        // item was already collected upfront by handleCollectDetails — go straight to the final response,
-        // don't ask for it again
         conversationRepository.updateCurrentNode(conversationId, "respond_with_details");
         return phraseNaturally("Let the user know you found their order and are pulling up the item details now, briefly.");
     }
@@ -98,47 +135,28 @@ public class CheckOrderStatusFlow implements Flow {
         return "I wasn't able to find that. Let me connect you with a human agent who can help.";
     }
 
-    private String handleCollectDetails(String conversationId, String turnId, String input) {
-        Optional<String> existingOrderId = slotRepository.getSlot(conversationId, "order_id");
-
-        String prompt = "Extract the order number mentioned in this message, if present.\n"
-                + "Respond with ONLY the order number, or NONE if not mentioned.\n\n"
-                + "Message: " + input;
-
-        String extracted = llmClient.complete(prompt);
-
-        if (existingOrderId.isEmpty() && !extracted.equals("NONE")) {
-            slotRepository.saveSlot(conversationId, "order_id", extracted);
-        }
-
-        Optional<String> orderIdSlot = slotRepository.getSlot(conversationId, "order_id");
-        if (orderIdSlot.isEmpty()) {
-            return phraseNaturally("Ask the user for their order number, in a friendly, brief way.");
-        }
-
-        conversationRepository.updateCurrentNode(conversationId, "lookup_order");
-        return phraseNaturally("Let the user know you're looking up their order now, briefly.");
-    }
-
     private String handleRespondWithDetails(String conversationId, String turnId, String input) {
-        Optional<String> currentOrderId = slotRepository.getSlot(conversationId, "order_id");
+        ConversationState state = conversationStateRepository.getOrCreate(conversationId);
 
-        String checkPrompt = "The user was just discussing order " + currentOrderId.orElse("unknown") + ".\n"
-                + "Their message: \"" + input + "\"\n"
-                + "Are they now asking about a DIFFERENT order number? If so, respond with ONLY that order number. "
-                + "If not, respond with exactly: SAME";
+        String resolvePrompt = "Known orders discussed in this conversation: " + describeKnownOrders(conversationId, state.activeFocus()) + "\n"
+                + "The user's latest message: \"" + input + "\"\n"
+                + "Which order are they asking about now? If it's the same one currently focused, respond with exactly: CURRENT. "
+                + "Otherwise respond with exactly the order number they mean (it may be one already listed above, or a brand new one).";
 
-        String possibleNewOrderId = llmClient.complete(checkPrompt);
+        String resolved = llmClient.complete(resolvePrompt);
 
-        if (!possibleNewOrderId.equals("SAME")) {
-            slotRepository.saveSlot(conversationId, "order_id", possibleNewOrderId);
+        if (!resolved.equals("CURRENT")) {
+            EntityReference newFocus = new EntityReference("ORDER", resolved);
+            conversationStateRepository.applyUpdate(conversationId,
+                    new ConversationStateUpdate(Optional.empty(), Optional.of(newFocus), List.of(newFocus)),
+                    state.version());
             slotRepository.saveSlot(conversationId, "order_details_json", "");
             conversationRepository.updateCurrentNode(conversationId, "lookup_order");
-            return phraseNaturally("Let the user know you're pulling up the new order now, briefly. Do not state any specific numbers.");
+            return phraseNaturally("Let the user know you're pulling up the order now, briefly. Do not state any specific numbers.");
         }
 
         Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
-        if (orderResultJson.isEmpty()) {
+        if (orderResultJson.isEmpty() || orderResultJson.get().isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
             return "I couldn't retrieve your order details. Let me connect you with a human agent.";
         }

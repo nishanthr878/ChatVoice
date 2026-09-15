@@ -48,7 +48,7 @@ public class PostgresConversationRepositoryTest {
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'",
                 Integer.class
         );
-        assertEquals(4, tableCount);
+        assertEquals(6, tableCount);
     }
 
     @Test
