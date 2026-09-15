@@ -121,6 +121,22 @@ public class CheckOrderStatusFlow implements Flow {
     }
 
     private String handleRespondWithDetails(String conversationId, String turnId, String input) {
+        Optional<String> currentOrderId = slotRepository.getSlot(conversationId, "order_id");
+
+        String checkPrompt = "The user was just discussing order " + currentOrderId.orElse("unknown") + ".\n"
+                + "Their message: \"" + input + "\"\n"
+                + "Are they now asking about a DIFFERENT order number? If so, respond with ONLY that order number. "
+                + "If not, respond with exactly: SAME";
+
+        String possibleNewOrderId = llmClient.complete(checkPrompt);
+
+        if (!possibleNewOrderId.equals("SAME")) {
+            slotRepository.saveSlot(conversationId, "order_id", possibleNewOrderId);
+            slotRepository.saveSlot(conversationId, "order_details_json", "");
+            conversationRepository.updateCurrentNode(conversationId, "lookup_order");
+            return phraseNaturally("Let the user know you're pulling up the new order now, briefly. Do not state any specific numbers.");
+        }
+
         Optional<String> orderResultJson = slotRepository.getSlot(conversationId, "order_details_json");
         if (orderResultJson.isEmpty()) {
             conversationRepository.updateCurrentNode(conversationId, "escalate_to_agent");
@@ -137,7 +153,9 @@ public class CheckOrderStatusFlow implements Flow {
         String prompt = "You are VA, a friendly order-support assistant.\n"
                 + "Order " + orderDetails.orderId() + " (status: " + orderDetails.status() + ") contains:\n" + itemList
                 + "\nThe user asked: \"" + input + "\"\n"
-                + "Answer their question using only the order information above. Be brief, one or two sentences.";
+                + "Answer using only the order information above. If the question is about a different order or something "
+                + "this data doesn't cover, say you don't have that information and ask for the order number they'd like, "
+                + "rather than inventing any limitation.";
 
         String response = llmClient.complete(prompt);
 

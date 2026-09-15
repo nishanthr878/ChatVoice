@@ -204,6 +204,7 @@ class CheckOrderStatusFlowScenarioTest {
         slotRepository.saveSlot("rd-open-ended", "order_details_json", objectMapper.writeValueAsString(orderDetails));
 
         QueuedLlmClient llmClient = new QueuedLlmClient(
+                "SAME",
                 "Order 1001 contains a Blue T-Shirt ($19.99) and Running Shoes ($59.99)."
         );
 
@@ -237,7 +238,7 @@ class CheckOrderStatusFlowScenarioTest {
         );
         slotRepository.saveSlot("rd-specific-item", "order_details_json", objectMapper.writeValueAsString(orderDetails));
 
-        QueuedLlmClient llmClient = new QueuedLlmClient("The Running Shoes are $59.99.");
+        QueuedLlmClient llmClient = new QueuedLlmClient("SAME", "The Running Shoes are $59.99.");
 
         CheckOrderStatusFlow flow = buildFlow(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
 
@@ -259,7 +260,7 @@ class CheckOrderStatusFlowScenarioTest {
         ObjectMapper objectMapper = new ObjectMapper();
 
         // order_details_json never set
-        QueuedLlmClient llmClient = new QueuedLlmClient(); // no LLM call expected
+        QueuedLlmClient llmClient = new QueuedLlmClient("SAME"); // no LLM call expected
 
         CheckOrderStatusFlow flow = buildFlow(conversationRepository, slotRepository, toolInvocationRepository, orderServiceClient, objectMapper, llmClient);
 

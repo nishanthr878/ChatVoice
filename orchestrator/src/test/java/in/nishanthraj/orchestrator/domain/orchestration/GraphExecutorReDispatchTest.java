@@ -75,6 +75,7 @@ class GraphExecutorReDispatchTest {
                 "Let me look that up for you.",
                 "Found it, one moment.",
                 "CONTINUE",
+                "SAME",
                 "Order 1001 contains a Blue T-Shirt ($19.99) and Running Shoes ($59.99)."
         );
 
@@ -150,6 +151,7 @@ class GraphExecutorReDispatchTest {
                 "Let me look that up.",
                 "Found it, one moment.",
                 "CONTINUE",
+                "SAME",
                 "Your order 1001 is currently in created status."
         );
 
