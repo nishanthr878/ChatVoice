@@ -186,7 +186,7 @@ Format: Decision → Alternatives considered → Why → Confidence.
 
 **Problem:** `GraphExecutor`'s coded state machine has no mechanism for a user switching topics mid-flow (e.g. asking to check order status while in the middle of collecting return details) — every input-consuming node blindly processes whatever it receives as if it belongs to the current task, producing wrong/confused behavior when it doesn't. Confirmed via live testing before this decision, not hypothetical.
 
-**Considered and rejected:** replacing the coded graph with an LLM-driven agent loop (Voice AI Vendor-style prerequisite-gated tool selection, where the model chooses the next action each turn). Rejected after researching current production guidance, not just internal reasoning — multiple independent current sources converge on the same distinction: deterministic orchestration is the better fit for workflows with known stages, explicit invariants, and verifiable intermediate states (this project's order-status/return flows are a clean example of this category), while LLM-controlled loops earn their cost only when the actual sequence of steps is genuinely unknown in advance. An empirical 2026 study comparing both approaches on a structured task found deterministic execution held similar functional accuracy while improving worst-case robustness, reducing variability, and cutting token cost substantially. The correct framing, refined through discussion: the deciding factor is the predictability of the underlying business process, not a universal "graphs beat agents" claim — and this project's two flows sit firmly in the predictable category. A code-level comparison against Voice AI Vendor's actual reviewed implementation (`main.tsx`, `store.ts`, tool definitions) also clarified that Voice AI Vendor's own architecture is not "LLM freely decides everything" either — it declares prerequisites and typed tool params as structural constraints, leaving only *sequencing/selection* to the model, a materially different (and more constrained) design than an unconstrained agent loop.
+**Considered and rejected:** replacing the coded graph with an LLM-driven agent loop (Sierra-style prerequisite-gated tool selection, where the model chooses the next action each turn). Rejected after researching current production guidance, not just internal reasoning — multiple independent current sources converge on the same distinction: deterministic orchestration is the better fit for workflows with known stages, explicit invariants, and verifiable intermediate states (this project's order-status/return flows are a clean example of this category), while LLM-controlled loops earn their cost only when the actual sequence of steps is genuinely unknown in advance. An empirical 2026 study comparing both approaches on a structured task found deterministic execution held similar functional accuracy while improving worst-case robustness, reducing variability, and cutting token cost substantially. The correct framing, refined through discussion: the deciding factor is the predictability of the underlying business process, not a universal "graphs beat agents" claim — and this project's two flows sit firmly in the predictable category. A code-level comparison against Sierra's actual reviewed implementation (`main.tsx`, `store.ts`, tool definitions) also clarified that Sierra's own architecture is not "LLM freely decides everything" either — it declares prerequisites and typed tool params as structural constraints, leaving only *sequencing/selection* to the model, a materially different (and more constrained) design than an unconstrained agent loop.
 
 **Design adopted — narrow adaptive layer at the input boundary, not a rewrite:** every node that reads raw user `input` (not every node — nodes with no free-text input to validate, like `lookup_order`/`check_threshold`/`auto_process`, are exempt) is checked by a new `InputBoundaryValidator` before its own handler runs. The validator answers exactly one narrow question — "does this input still make sense given the current step, or has the user's intent changed" — returning a CONTINUE/SWITCH decision plus, on SWITCH, which new intent it looks like. On SWITCH, `GraphExecutor` resets `flow_type`/`current_node` to `intent_classification`/`classify` and lets the normal classification flow re-route, rather than the validator directly setting the new `flow_type` itself — deliberately keeping the adaptive layer from acquiring business-logic authority it shouldn't have (LLM decides "what changed"; code alone decides "what that means for state").
 
@@ -313,7 +313,7 @@ Key reframing: the FSM/graph's job becomes "what operations exist and how are th
 
 **Second refinement, locked before implementation:** state-aware interpretation prompting (the LLM needing the current `entities`/`activeFocus` serialized into its prompt to resolve references like "the other one") was explicitly flagged as new, real implementation work, not something that falls out for free from adding the fields — not yet built, correctly scoped as a distinct future step.
 
-**Third refinement, changed the interface shape:** rather than separate `updateActiveIntent`/`updateActiveFocus` methods each independently checking `expectedVersion` (the original per-field proposal), state mutation was collapsed into one atomic `applyUpdate(conversationId, ConversationStateUpdate, expectedVersion)` call taking a single patch (intent, focus, and new entities together, each `Optional`/list, `Optional.empty()` meaning "leave unchanged"). This mirrors the `capture(prev, patch) -> Store` pure-merge pattern found in the Voice AI Vendor code-level comparison done earlier in the project — direct validation that observation was worth acting on, not just an interesting aside at the time. Avoids a real race the per-field design had: two independent version-checked writes from one turn's interpretation step would have the second write's expectedVersion go stale the moment the first one succeeds.
+**Third refinement, changed the interface shape:** rather than separate `updateActiveIntent`/`updateActiveFocus` methods each independently checking `expectedVersion` (the original per-field proposal), state mutation was collapsed into one atomic `applyUpdate(conversationId, ConversationStateUpdate, expectedVersion)` call taking a single patch (intent, focus, and new entities together, each `Optional`/list, `Optional.empty()` meaning "leave unchanged"). This mirrors the `capture(prev, patch) -> Store` pure-merge pattern found in the Sierra code-level comparison done earlier in the project — direct validation that observation was worth acting on, not just an interesting aside at the time. Avoids a real race the per-field design had: two independent version-checked writes from one turn's interpretation step would have the second write's expectedVersion go stale the moment the first one succeeds.
 
 **Schema (Postgres):**
 ```sql
@@ -371,3 +371,84 @@ CREATE TABLE IF NOT EXISTS conversation_entity (
 **A genuine, separate correctness gap surfaced as a side effect of chasing that bug, not yet fixed:** `OrderLookupHelper`'s idempotency cache key is `(conversationId, turnId, "lookup_order")` — it does not include *which* order was requested. During the bogus re-entry caused by the SAME/CURRENT mismatch, a second lookup for the fake order within the same chained turn silently hit the cache from the first, real lookup and returned the old order's data rather than failing. Not currently reachable through the fixed code path (the bug that exposed it is fixed), but a real latent gap worth tightening later regardless — the cache key should most likely include the order ID itself, not just the turn.
 
 **Result:** full suite green. `check_order_status` is the first flow fully migrated to the new `ConversationState` model, proving out D21's design end to end — schema through domain model through real Postgres implementation through actual flow integration through passing tests, including a test that specifically demonstrates the new capability (coreference resolution) the old design structurally could not provide. `process_return` remains on the old `SlotRepository`-based order_id model — not yet migrated, per D21's explicitly locked sequencing (prove the design on one flow before touching the second).
+
+---
+
+### D21 implementation continued — process_return migrated to ConversationState, both flows now done
+
+**Key design refinements locked in before code, all confirmed correct against evidence:**
+- `activeFocus` stays the order for `process_return`, same as `check_order_status` — deliberately not made to oscillate between order/item/reason. Test: "if the user says 'the other order', what does that modify?" — always the order, which is why the order (and only the order) belongs in `activeFocus`. Item and return reason stay as `SlotRepository` values — execution-scoped facts about the current return operation, not conversational entities ever needing coreference resolution themselves. Explicitly left open, not foreclosed: if the conversation ever needs to resolve "what about the other pair" against multiple items, that's a real future extension, not something to build preemptively for a capability not yet needed.
+- Order-switch resolution belongs solely in `handleCollectDetails`, the only input-consuming node — `check_threshold`/`auto_process` never reinterpret raw user language, only read validated state. Named as an explicit architectural invariant: ambiguity is resolved once, at the input boundary; downstream deterministic nodes never see raw input at all.
+- **The one invariant treated as non-negotiable: switching to a different order invalidates the old order's dependent slots (item, return reason, cached order details).** Rationale, stated precisely: silently carrying "shoes, wrong size" across a switch to a different order produces a state that looks valid but was never actually established by the user for that order — exactly the class of confidently-wrong output this whole redesign exists to prevent.
+- **Refinement that changed the actual implementation, not just a detail:** a switch and new information can arrive in the *same* utterance ("actually, return the jacket from order 1004 instead") — invalidation must not blindly clear everything and stop; it must invalidate first, then still collect whatever the same message supplies against the new focus. Solved by a single combined extraction+switch-detection prompt (ORDER_ID/ITEM/REASON/IS_SWITCH in one call) rather than two sequential calls, both for correctness (one atomic decision instead of racing two) and for the latency reasons already established earlier tonight.
+
+**Built:** full `ProcessReturnFlow` rewrite around `ConversationStateRepository`, `FlowConfiguration` updated. `handleLookupOrder`/`handleCheckThreshold`/`handleAutoProcess` deliberately left reading only `ConversationState`/slots, never raw input — direct enforcement of the input-boundary invariant above.
+
+**Tested with `ProcessReturnFlowScenarioTest`, six cases**, two of which are the actual proof of the hard invariant rather than restating the happy path: `switchingOrderWithNewItemInSameMessage_invalidatesOldSlotsButKeepsNewItem` (proves invalidate-then-recollect-against-new-focus works correctly in one call) and `switchingOrderWithNoNewInfo_invalidatesAllDependentSlots` (proves a bare switch with no new facts correctly clears everything and leaves the flow waiting to re-ask, rather than either preserving stale data or crashing). Both `check_threshold` tests deliberately queue zero LLM responses, same defensive pattern used throughout the project — `check_threshold` must never call the LLM at all, since the approval decision is required to stay pure, deterministic code.
+
+**Result: both flows are now fully migrated to the ConversationState model.** `check_order_status` proved read-only coreference resolution; `process_return` proved the harder mutating case — state invalidation on focus change, with correct same-utterance re-collection. D21's redesign is no longer a proposal or a single-flow proof of concept; it's the project's actual, complete architecture across both real business flows. Full suite green.
+
+
+---
+
+### D22 — Telephony + real-time speech: Twilio (PSTN) + Deepgram (STT+TTS), native codec passthrough
+
+**Alternatives considered:** browser-only WebRTC widget (no real phone numbers); reusing an existing self-hosted SIP/RTP/Whisper/Piper pipeline from a separate prior project; ElevenLabs/Cartesia for TTS.
+
+**Why:** real PSTN calling was the explicit goal (not a browser demo). Self-hosting SIP/RTP/STT/TTS was rejected on maintenance grounds — too many moving parts for a 10-20-call, 2-3-month proof of concept. Deepgram over ElevenLabs/Cartesia: Deepgram's $200 free-account credit covers STT and TTS both, at this call volume, with zero net cost; consolidating both roles onto one vendor removes an integration rather than adding one. Deepgram's streaming TTS WebSocket supports `encoding=mulaw&sample_rate=8000` directly — Twilio Media Streams sends/expects that exact format, so no PCM↔mulaw conversion layer is written on either leg.
+
+**Known cost tradeoff, explicit:** Deepgram Aura-2 is not the fastest TTS on the market (Cartesia beats it on time-to-first-byte). Accepted for a free POC; would need re-evaluation if this became a permanent system.
+
+**Confidence:** high for the vendor choice at this volume; the codec-passthrough decision is high-confidence and should not be second-guessed mid-implementation.
+ 
+---
+
+### D23 — Voice is a second transport calling `GraphExecutor.step()` directly; no Kafka on the hot path — claim narrowed, one part unverified
+
+**What's confirmed:** `ConversationEventConsumer` does nothing but parse-and-delegate to `step()`; `step()` is Kafka-agnostic. Voice calling `step()` directly, bypassing Kafka, is correct and unchanged.
+
+**What's NOT yet confirmed:** whether `step()` can be called by voice with zero changes to its own code. `conversation.channel` is `NOT NULL VARCHAR(16)` with no default. Every current row is chat-created, so `create()` already supplies a value for `channel` somehow — the question is how.
+
+- **(a)** `step()`'s signature already threads a `channel` parameter through to `create()`, sourced from whoever calls `step()`. If true: voice remains purely additive — `VoiceSessionManager` passes `"voice"` through the same parameter chat passes `"chat"` through. Zero orchestration-layer changes.
+- **(b)** `step()` hardcodes the literal `"chat"` in its own call to `create()`. If true: `step()`'s signature must change to accept `channel`, touching every existing caller (`ConversationEventConsumer`, all tests calling `step()` directly) — a real, non-additive change to `GraphExecutor` itself.
+  **Status: unresolved.** This single fact decides whether D23's core claim ("no changes to `GraphExecutor` for voice") is true or false. Check `GraphExecutor.step()`'s actual current signature and its actual call to `create()` before proceeding past the transport skeleton (Commit 1).
+
+**Confidence:** high on the Kafka-bypass part; none on the additive-vs-non-additive claim until checked.
+ 
+---
+
+### D24 — Per-conversation sequential invocation of `step()` is voice's own concurrency guarantee; does not inherit D13's Kafka-partition safety proof
+
+**The gap:** D13's `sequence_number` assignment (`SELECT MAX+1` then `INSERT`, two statements, non-atomic) is safe only because Kafka never assigns the same partition to two consumers in the same group simultaneously — a transport-specific guarantee. Voice does not use Kafka on its hot path (D23). No equivalent guarantee currently exists or is enforced for voice-originated `step()` calls.
+
+**What actually needs to be true:** exactly one `step()` invocation in flight per `conversationId` at any time. Plausible by construction if `VoiceSessionManager` always dispatches sequentially per call — but this is currently an assumption, not proven the way D13's Kafka case was proven (live rebalance tests, concurrent-send tests).
+
+**Real risk:** a race between a barge-in cancellation path and a normal `speech_final` path both calling `step()` for the same `conversationId` would reproduce D13's known non-atomic race — silently, for voice, with no partition mechanism to prevent it.
+
+**Required before shipping voice:** either (a) prove single-threaded-per-call by construction (one dedicated executor per active `VoiceSession`), or (b) make `sequence_number` assignment atomic at the DB level (Postgres sequence, or `SELECT ... FOR UPDATE`) — removing dependence on any transport-level guarantee entirely. (b) is more robust and arguably overdue for chat too.
+
+**Confidence:** high that the gap is real; not yet resolved which fix to take.
+ 
+---
+
+### D25 — Voice session state splits `PROCESSING` from `SPEAKING`; `step()` runs off the WebSocket's frame-reading thread
+
+**Problem found before implementation:** a two-state (`LISTENING`/`SPEAKING`) model conflates "GraphExecutor is running, no audio yet" with "TTS is actively playing." Barge-in logic (clearing Twilio's playback buffer) is a no-op during the processing window, since nothing is buffered yet — but that's exactly when a caller is likely to jump in. Separately: if `step()` runs synchronously on the same thread reading incoming Twilio `media` frames, that thread stops draining the WebSocket for the duration of the LLM call(s), producing backlogged/dropped frames that look like an STT bug but are a threading bug.
+
+**Decision:** three explicit states (`LISTENING` → `PROCESSING` → `SPEAKING` → `LISTENING`); `step()` dispatched to a dedicated executor per session, never inline on the frame-reading callback.
+
+**Explicitly undesigned:** correct barge-in behavior during `PROCESSING` (queue the new utterance vs. cancel the in-flight `step()` call) — flagged as open, not silently treated as solved.
+
+**Confidence:** high on the problem being real; implementation not yet built.
+ 
+---
+
+### D26 — [OPEN] Voice's latency budget depends on `step()`'s worst-case hop count, currently unmeasured, observed as high as 5 sequential LLM calls per D21
+
+**Why this blocks confident implementation:** a phone call needs sub-~1s response to feel non-broken. `step()`'s bounded multi-hop loop, `InputBoundaryValidator`, slot extraction, order-switch/coreference resolution, and `phraseNaturally` calls can stack within one external call — D21 logged "5 sequential LLM calls observed in the worst case," with a suggested-but-unimplemented target of ~2 calls/turn. Voice has zero tolerance for the current worst case; chat's async poll loop has been absorbing this cost invisibly.
+
+**Not decided:** whether to (a) measure real worst-case latency on live `check_order_status`/`process_return` calls before writing voice code, (b) build voice against current latency and accept a rough demo, or (c) treat this as the forcing function to finally do the "2 calls/turn" consolidation D21 flagged and never executed.
+
+**Recommendation, not a decision:** (a) first — one afternoon of stopwatching real calls through the existing widget, before committing to the transport layer.
+
+**Confidence:** none yet — explicitly open.

@@ -101,3 +101,106 @@ The original HLD (Layers 1-5, YAML-config-driven graph, Layer 5 as a deferred "e
 - `OrderLookupHelper`'s idempotency cache key doesn't include the order ID itself.
 - Distributed tracing doesn't propagate across the Kafka publish->consume boundary -- diagnosed (likely tied to using a manually configured listener container instead of `@KafkaListener`), not yet fixed.
 - `InputBoundaryValidator` (D20) has not been re-verified for correct composition with the newer `ConversationState` model on `check_order_status`.
+
+
+----
+
+# Architecture Doc (HLD) — Voice/Telephony Addendum
+
+**Status:** Living document, pre-implementation. Extends the existing HLD. Voice is a second inbound transport, parallel to the existing REST/Kafka one, feeding the same `GraphExecutor` — see D22-D26 in the decisions log for the reasoning behind every choice below.
+
+## System overview (addendum)
+
+```
+   Twilio PSTN -->|  TwilioWebhookController (TwiML) |
+                  +----------------+-----------------+
+                                   v
+                  +----------------------------------+
+                  |  VoiceStreamHandler (WebSocket,    |
+                  |  Twilio Media Streams protocol)    |
+                  +----------------+-------------------+
+                                   v
+                  +----------------------------------+
+                  |  VoiceSessionManager                |
+                  |  - owns callSid <-> conversationId   |
+                  |  - state: LISTENING/PROCESSING/      |
+                  |    SPEAKING (D25)                    |
+                  |  - dispatches step() off the frame-  |
+                  |    reading thread (D25)              |
+                  +----+------------------------+--------+
+                       |                         |
+                       v                         v
+              DeepgramSttClient          DeepgramTtsClient
+              (mulaw/8000 in)            (mulaw/8000 out, D22)
+                       |
+                       v speech_final(text)
+              +--------------------------+
+              |  GraphExecutor.step()     |  <-- D23: additive-only
+              |  (channel="voice" — see   |      IF branch (a) holds.
+              |   D23 open item)          |      Verify before build.
+              +--------------------------+
+```
+
+The chat path is unchanged: `HTTP → Kafka → ConversationEventConsumer → GraphExecutor.step()`. Voice is a second, parallel entry point into the same `step()`, not a modification of the chat path.
+
+## Layer responsibilities, voice-specific
+
+**`TwilioWebhookController`.** Handles Twilio's inbound-call webhook, returns TwiML directing Twilio to open a Media Streams WebSocket. Pure transport — no domain knowledge.
+
+**`VoiceStreamHandler`.** WebSocket endpoint speaking Twilio's Media Streams protocol (`start`/`media`/`stop` events). Delegates everything to `VoiceSessionManager`.
+
+**`VoiceSessionManager`.** Owns exactly two identities: `callSid` (Twilio transport identity) and `conversationId` (durable domain identity, generated once at call-start, not lazily — mirrors the existing `turnId`-ownership boundary already established for `GraphExecutor`). Owns the `LISTENING`/`PROCESSING`/`SPEAKING` state machine (D25). Does not call `conversationRepository.create()` directly — `step()` already does this lazily on first call, same as chat.
+
+**`DeepgramSttClient` / `DeepgramTtsClient`.** Same port-shaped pattern as the existing `LlmClient`/`GroqLlmClient` — the project's existing hexagonal boundary (per the HLD's Layer 3 discussion) extended to a third external system, not a new pattern.
+
+**`GraphExecutor.step()`.** Unchanged in principle — same method chat's `ConversationEventConsumer` already calls. Whether it's unchanged *in practice* (zero code edits) depends on how `channel` is currently threaded through to `conversationRepository.create()` — see D23's open item. Do not treat this box as settled until that's checked.
+
+## Codec contract (D22)
+
+```
+Twilio Media Streams   8kHz, mono, μ-law (mulaw)
+Deepgram STT connection:  encoding=mulaw, sample_rate=8000
+Deepgram TTS connection:  encoding=mulaw, sample_rate=8000
+```
+
+Raw base64-decoded Twilio bytes go straight to Deepgram STT. Raw Deepgram TTS output bytes go straight into Twilio `media` messages, re-base64'd. No PCM intermediate anywhere in this path.
+
+## State machine (D25)
+
+```
+LISTENING
+   | speech_final(text)
+   v
+PROCESSING  ---- step() runs on a dedicated per-session executor,
+   |              NOT the WebSocket frame-reading thread
+   | response text
+   v
+SPEAKING    ---- Deepgram TTS streaming; interim STT still live
+   |              in parallel, for barge-in detection
+   |
+   +-- barge-in: interim transcript arrives while SPEAKING
+   |     -> send Twilio `clear`, cancel TTS stream, -> LISTENING
+   |
+   +-- TTS stream completes naturally -> LISTENING
+```
+
+Barge-in during `PROCESSING` (no buffered audio yet to clear) is explicitly undesigned — do not assume it degrades gracefully.
+
+## Known technical debt — voice-specific
+
+- **`conversation.channel` exists** (`VARCHAR(16) NOT NULL`, no default) — confirmed against the real schema. What's still open: whether `GraphExecutor.step()` currently hardcodes `channel="chat"` or already threads it as a parameter. Blocks confirming D23's "zero changes to `GraphExecutor`" claim. Check `GraphExecutor.java` directly before Commit 2 of the voice build.
+- **D24's per-`conversationId` sequential guarantee** for `step()` calls is asserted by design intent, not proven the way D13's Kafka-partition case was proven (live rebalance tests, concurrent-send tests).
+- **D26's latency budget is unmeasured.** `step()`'s real worst-case hop count (up to 5 sequential LLM calls, per the existing decisions log) has not been checked against voice's sub-~1s tolerance. Recommended: measure via the existing widget before committing to the transport implementation.
+- **`PROCESSING`-window barge-in** — undesigned, not merely unimplemented.
+
+## Implementation order (gated)
+
+1. Measure D26 — real worst-case `step()` latency through the existing widget.
+2. Resolve D23 — check `GraphExecutor.step()`'s actual signature and its call to `create()`.
+3. Transport skeleton (`TwilioWebhookController`, `VoiceStreamHandler`, `VoiceSessionManager`) — no STT/TTS yet.
+4. Deepgram STT wired in, logged only — `GraphExecutor` not yet called.
+5. `step()` wired in, dispatched off the frame-reading thread (D25).
+6. Deepgram TTS wired in.
+7. Barge-in for the `SPEAKING` state only.
+8. `PROCESSING`-window barge-in, as its own deliberate step — not bundled into step 7.
+
