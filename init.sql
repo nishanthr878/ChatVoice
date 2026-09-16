@@ -38,3 +38,23 @@ CREATE TABLE tool_invocation (
                                  created_at TIMESTAMPTZ DEFAULT now(),
                                  updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+
+CREATE TABLE IF NOT EXISTS conversation_state (
+    conversation_id UUID PRIMARY KEY,
+    active_intent VARCHAR(50),
+    active_focus_entity_type VARCHAR(50),
+    active_focus_entity_id VARCHAR(100),
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS conversation_entity (
+    id SERIAL PRIMARY KEY,
+    conversation_id UUID NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(100) NOT NULL,
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (conversation_id, entity_type, entity_id)
+);

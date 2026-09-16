@@ -1,5 +1,7 @@
 # Layer 2 — Conversation State Manager: High-Level Design
 
+**Note (added later):** this document describes the *original* persistence schema (`conversation`/`turn`/`slot`/`tool_invocation`) — still live and accurate as written. A separate, additive domain model, `ConversationState` (tracking `activeIntent`, `activeFocus`, and known `entities` per conversation, backed by new `conversation_state`/`conversation_entity` tables), was added later on top of this layer, not as a replacement — see decisions-log D21 for the full design and reasoning. Don't confuse "Layer 2 — Conversation State Manager" (this whole persistence layer) with "`ConversationState`" (the specific new D21 domain object) — same words, different scope.
+
 ## Purpose
 
 Durable, queryable source of truth for a conversation's state — independent of any single LLM call or process. Layer 3 (orchestration) reads/writes this to decide what happens next; it does not hold state itself.
@@ -12,44 +14,44 @@ Layer 2 only. Two concrete flows will run on top of it: `check_order_status` (re
 
 ```sql
 CREATE TABLE conversation (
-                              conversation_id UUID PRIMARY KEY,
-                              channel VARCHAR(16) NOT NULL,          -- 'chat' (voice later)
-                              flow_type VARCHAR(64) NOT NULL,        -- 'check_order_status' | 'process_return'
-                              current_node VARCHAR(64) NOT NULL,
-                              status VARCHAR(16) NOT NULL,           -- active/escalated/resolved/abandoned
-                              created_at TIMESTAMPTZ DEFAULT now(),
-                              updated_at TIMESTAMPTZ DEFAULT now()
+    conversation_id UUID PRIMARY KEY,
+    channel VARCHAR(16) NOT NULL,          -- 'chat' (voice later)
+    flow_type VARCHAR(64) NOT NULL,        -- 'check_order_status' | 'process_return'
+    current_node VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL,           -- active/escalated/resolved/abandoned
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE turn (
-                      turn_id UUID PRIMARY KEY,
-                      conversation_id UUID REFERENCES conversation(conversation_id),
-                      speaker VARCHAR(8) NOT NULL,           -- user/agent/system
-                      content TEXT NOT NULL,
-                      sequence_number INT NOT NULL,
-                      created_at TIMESTAMPTZ DEFAULT now(),
-                      UNIQUE(conversation_id, sequence_number)
+    turn_id UUID PRIMARY KEY,
+    conversation_id UUID REFERENCES conversation(conversation_id),
+    speaker VARCHAR(8) NOT NULL,           -- user/agent/system
+    content TEXT NOT NULL,
+    sequence_number INT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(conversation_id, sequence_number)
 );
 
 CREATE TABLE slot (
-                      conversation_id UUID REFERENCES conversation(conversation_id),
-                      slot_name VARCHAR(64) NOT NULL,
-                      slot_value JSONB NOT NULL,
-                      source_turn_id UUID REFERENCES turn(turn_id),
-                      filled_at TIMESTAMPTZ DEFAULT now(),
-                      PRIMARY KEY (conversation_id, slot_name)
+    conversation_id UUID REFERENCES conversation(conversation_id),
+    slot_name VARCHAR(64) NOT NULL,
+    slot_value JSONB NOT NULL,
+    source_turn_id UUID REFERENCES turn(turn_id),
+    filled_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (conversation_id, slot_name)
 );
 
 CREATE TABLE tool_invocation (
-                                 invocation_id UUID PRIMARY KEY,
-                                 conversation_id UUID REFERENCES conversation(conversation_id),
-                                 idempotency_key VARCHAR(128) UNIQUE NOT NULL,  -- conversation_id:turn_id:tool_name
-                                 tool_name VARCHAR(64) NOT NULL,
-                                 arguments JSONB NOT NULL,
-                                 result JSONB,
-                                 status VARCHAR(16) NOT NULL,           -- pending/approved/executed/failed/rejected
-                                 created_at TIMESTAMPTZ DEFAULT now(),
-                                 updated_at TIMESTAMPTZ DEFAULT now()
+    invocation_id UUID PRIMARY KEY,
+    conversation_id UUID REFERENCES conversation(conversation_id),
+    idempotency_key VARCHAR(128) UNIQUE NOT NULL,  -- conversation_id:turn_id:tool_name
+    tool_name VARCHAR(64) NOT NULL,
+    arguments JSONB NOT NULL,
+    result JSONB,
+    status VARCHAR(16) NOT NULL,           -- pending/approved/executed/failed/rejected
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
 );
 ```
 
