@@ -36,7 +36,7 @@ public class FlowConfiguration {
                                                                                 conversationStateRepository);
 
         ProcessReturnFlow processReturnFlow = new ProcessReturnFlow(conversationRepository,
-                slotRepository, toolInvocationRepository, llmClient,orderServiceClient, objectMapper, orderLookupHelper);
+                slotRepository, toolInvocationRepository, llmClient, objectMapper, orderLookupHelper, conversationStateRepository);
 
         IntentClassificationFlow intentClassificationFlow = new IntentClassificationFlow(conversationRepository, llmClient);
 
