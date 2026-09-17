@@ -1,6 +1,6 @@
 # ChatVoice — Conversational Order-Support Agent Platform
 
-A from-scratch, deterministic-core conversational agent platform, built to understand and demonstrate the architecture underneath enterprise agent platforms like Voice AI Vendor and Voice AI Vendor — not a framework wrapper, not a tutorial project.
+A from-scratch, deterministic-core conversational agent platform, built to understand and demonstrate the architecture underneath enterprise agent platforms like Sierra and Decagon — not a framework wrapper, not a tutorial project.
 
 **What it does:** a chat widget where users can check order status and start returns, backed by a real distributed system: Kafka-ordered conversation events, a Spring Boot orchestrator with a bounded, LLM-guided state machine, a real external order service, and a self-hosted observability stack.
 
@@ -40,7 +40,7 @@ docker exec -it agent-platform-kafka /opt/kafka/bin/kafka-consumer-groups.sh \
 
 ## What's real vs. what's known-open
 
-This project is built and documented with the same standard applied throughout: verify with real evidence, log honestly what isn't done. Currently working and live-verified: order lookup, multi-item questions, mid-conversation order switching (including pronoun-style references like "the other one"), return processing with a real deterministic approval threshold, full observability (logs + traces). Currently open, tracked precisely in `docs/decisions-log.md`: `process_return` hasn't yet been migrated to the newer `ConversationState` model; a Kafka message-redelivery duplicate-turn edge case; trace propagation doesn't yet cross the Kafka consumer boundary. Nothing here is hidden — the decision log is the actual, honest project history, not a cleaned-up summary.
+This project is built and documented with the same standard applied throughout: verify with real evidence, log honestly what isn't done. Currently working and live-verified: order lookup, multi-item questions, mid-conversation order switching (including pronoun-style references like "the other one"), return processing with a real deterministic approval threshold, full observability (logs + traces). Both `check_order_status` and `process_return` are fully migrated to the `ConversationState` model. Currently open, tracked precisely in `docs/decisions-log.md`: a Kafka message-redelivery duplicate-turn edge case; trace propagation doesn't yet cross the Kafka consumer boundary. A telephony voice layer (Twilio + Deepgram) is under active development but **not yet confirmed working end-to-end** — nothing here is hidden, the decision log is the actual, honest project history, not a cleaned-up summary.
 
 ## Project docs
 
