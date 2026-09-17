@@ -37,3 +37,13 @@ management:
       export:
         otlp:
           endpoint: http://tempo:4318/v1/traces
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+voice:
+  public-host: ${VOICE_PUBLIC_HOST:pasty-washout-supermom.ngrok-free.dev}
+
+deepgram:
+  api-key: ${DEEPGRAM_API_KEY}

@@ -29,8 +29,12 @@ public class GraphExecutor {
     }
 
     public String step(String conversationId, String input) {
+        return step(conversationId, input, "chat");
+    }
+
+    public String step(String conversationId, String input, String channel) {
         if (!conversationRepository.exists(conversationId)) {
-            conversationRepository.create(conversationId, "chat", "intent_classification", "classify");
+            conversationRepository.create(conversationId, channel, "intent_classification", "classify");
         }
 
         String userTurnId = UUID.randomUUID().toString();
@@ -74,6 +78,10 @@ public class GraphExecutor {
 
         return response;
     }
+
+
+
+
 
     private String dispatch(String conversationId, String turnId, String input, String flowType) {
         Flow flow = flowsByType.get(flowType);
