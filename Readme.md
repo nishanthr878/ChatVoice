@@ -48,3 +48,5 @@ This project is built and documented with the same standard applied throughout: 
 - `docs/architecture-doc.md` — system diagram and layer responsibilities, as actually built
 - `docs/decisions-log.md` — the real, detailed decision and debugging history — every architectural choice, every bug found, every root cause, in order
 - `docs/layer2-conversation-state-design.md` — the original persistence schema design
+
+<img width="5679" height="5634" alt="diagram" src="https://github.com/user-attachments/assets/536c4a61-ef5e-4c27-be2b-502d99909d99" /> 
